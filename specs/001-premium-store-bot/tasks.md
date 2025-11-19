@@ -128,24 +128,24 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T047 [P] [US3] Integration test for checkout flow in tests/integration/checkout-flow.test.js (real Telegram API)
-- [ ] T048 [P] [US3] Integration test for QRIS payment in tests/integration/qris-payment.test.js (real Telegram API)
-- [ ] T049 [P] [US3] Integration test for manual bank transfer in tests/integration/manual-payment.test.js (real Telegram API)
-- [ ] T050 [P] [US3] Contract test for payment callback endpoint in tests/contract/payment-callback.test.js
+- [X] T047 [P] [US3] Integration test for checkout flow in tests/integration/checkout-flow.test.js (real Telegram API)
+- [X] T048 [P] [US3] Integration test for QRIS payment in tests/integration/qris-payment.test.js (real Telegram API)
+- [X] T049 [P] [US3] Integration test for manual bank transfer in tests/integration/manual-payment.test.js (real Telegram API)
+- [X] T050 [P] [US3] Contract test for payment callback endpoint in tests/contract/payment-callback.test.js
 
 ### Implementation for User Story 3
 
-- [ ] T051 [P] [US3] Create Order model in src/models/order.js with state machine validation
-- [ ] T052 [P] [US3] Create Payment model in src/models/payment.js with payment method and status
-- [ ] T053 [P] [US3] Create Stock model in src/models/stock.js with reserved quantity tracking
-- [ ] T054 [P] [US3] Implement Order repository in src/lib/order/order-repository.js
-- [ ] T055 [P] [US3] Implement Payment repository in src/lib/payment/payment-repository.js
-- [ ] T056 [P] [US3] Implement Stock repository in src/lib/product/stock-repository.js
-- [ ] T057 [US3] Implement Order service in src/lib/order/order-service.js with order creation and status management using database transactions (FR-033)
+- [X] T051 [P] [US3] Create Order model in src/models/order.js with state machine validation
+- [X] T052 [P] [US3] Create Payment model in src/models/payment.js with payment method and status
+- [X] T053 [P] [US3] Create Stock model in src/models/stock.js with reserved quantity tracking
+- [X] T054 [P] [US3] Implement Order repository in src/lib/order/order-repository.js
+- [X] T055 [P] [US3] Implement Payment repository in src/lib/payment/payment-repository.js
+- [X] T056 [P] [US3] Implement Stock repository in src/lib/product/stock-repository.js
+- [X] T057 [US3] Implement Order service in src/lib/order/order-service.js with order creation and status management using database transactions (FR-033)
 - [ ] T058 [US3] Implement Checkout handler in src/lib/order/checkout-handler.js with step-by-step wizard
 - [ ] T059 [US3] Implement QRIS payment handler in src/lib/payment/qris-handler.js with Duitku SDK integration
 - [ ] T060 [US3] Implement manual bank transfer handler in src/lib/payment/manual-verification.js with payment proof upload
-- [ ] T061 [US3] Implement Payment service in src/lib/payment/payment-service.js with payment verification logic
+- [X] T061 [US3] Implement Payment service in src/lib/payment/payment-service.js with payment verification logic
 - [ ] T062 [US3] Create payment callback endpoint in server.js for Duitku webhook (POST /api/payment/callback/qris)
 - [ ] T063 [US3] Implement payment status polling endpoint in server.js (GET /api/payment/callback/status)
 - [ ] T064 [US3] Add "Beli" (Buy) button to product details view
@@ -154,8 +154,8 @@
 - [ ] T067 [US3] Implement QRIS payment flow: Generate QRIS code/image and display instructions
 - [ ] T068 [US3] Implement manual bank transfer flow: Display bank account details and payment proof upload prompt
 - [ ] T069 [US3] Implement automatic QRIS payment verification via webhook callback
-- [ ] T070 [US3] Implement stock reservation when order is created (reserve quantity) using database transactions with row-level locking (FR-033)
-- [ ] T071 [US3] Implement stock deduction when payment is verified (decrease current quantity, decrease reserved)
+- [X] T070 [US3] Implement stock reservation when order is created (reserve quantity) using database transactions with row-level locking (FR-033) - Implemented in order-service.js and stock-repository.js
+- [X] T071 [US3] Implement stock deduction when payment is verified (decrease current quantity, decrease reserved) - Implemented in payment-service.js and stock-repository.js
 - [ ] T072 [US3] Implement out-of-stock validation: Prevent purchase when stock is zero
 - [ ] T073 [US3] Add checkout session management using Redis for multi-step checkout state
 - [ ] T074 [US3] Implement checkout timeout handling (abandoned checkout cleanup)

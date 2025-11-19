@@ -35,10 +35,87 @@ app.get('/health', (req, res) => {
 // Telegram webhook endpoint
 app.post('/webhook/telegram', webhookLimiter, webhookMiddleware);
 
-// Payment callback endpoint (will be implemented in Phase 5)
-app.post('/api/payment/callback/qris', webhookLimiter, (req, res) => {
-  // Placeholder - will be implemented in User Story 3
-  res.status(501).json({ error: 'Not implemented yet' });
+// Payment callback endpoint (T062, FR-057, Article XII)
+const paymentService = require('./src/lib/payment/payment-service');
+const { NotFoundError } = require('./src/lib/shared/errors');
+const crypto = require('crypto');
+
+app.post('/api/payment/callback/qris', webhookLimiter, async (req, res) => {
+  try {
+    // HMAC signature verification (FR-031, FR-057)
+    const secret = config.get('DUITKU_API_KEY', 'test_secret');
+    const payload = req.body;
+    const signature = req.headers['x-duitku-signature'] || req.headers['x-duitku-signature'];
+
+    // Generate expected signature
+    const payloadString = JSON.stringify(payload);
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(payloadString)
+      .digest('hex');
+
+    // Verify signature
+    if (signature !== expectedSignature) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    // Validate required fields
+    if (!payload.transactionId || !payload.orderId || !payload.status || !payload.amount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Verify payment if status is 'paid'
+    if (payload.status === 'paid') {
+      try {
+        await paymentService.verifyQRISPayment(
+          parseInt(payload.orderId, 10),
+          payload.transactionId
+        );
+      } catch (error) {
+        if (error instanceof NotFoundError) {
+          return res.status(404).json({ error: 'Order not found' });
+        }
+        throw error;
+      }
+    }
+
+    res.status(200).json({ status: 'success', message: 'Payment verified' });
+  } catch (error) {
+    logger.error('Error processing QRIS callback', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Payment Status Polling Endpoint (T063)
+app.get('/api/payment/callback/status', webhookLimiter, async (req, res) => {
+  try {
+    const transactionId = req.query.transaction_id;
+    if (!transactionId) {
+      return res.status(400).json({ error: 'transaction_id is required' });
+    }
+
+    try {
+      const payment = await paymentService.getPaymentByTransactionId(transactionId);
+      if (!payment) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      res.status(200).json({
+        transactionId: payment.payment_gateway_transaction_id,
+        orderId: payment.order_id.toString(),
+        status: payment.status,
+        amount: payment.amount,
+      });
+    } catch (error) {
+      if (error instanceof NotFoundError || !error) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Error getting payment status', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Error handling middleware (FR-036, Article X)
