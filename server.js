@@ -165,6 +165,15 @@ process.on('SIGINT', () => {
 if (require.main === module) {
   startServer();
 
+  // Start backup scheduler (T145)
+  const BackupScheduler = require('./src/lib/backup/backup-scheduler');
+  const backupScheduler = new BackupScheduler();
+  const enableBackupScheduler = config.getBoolean('ENABLE_BACKUP_SCHEDULER', true);
+  if (enableBackupScheduler) {
+    backupScheduler.start();
+    logger.info('Backup scheduler enabled');
+  }
+
   // Start checkout timeout cleanup scheduler (T074)
   const checkoutTimeout = require('./src/lib/order/checkout-timeout');
   checkoutTimeout.startCleanupScheduler();
