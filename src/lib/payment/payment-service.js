@@ -10,6 +10,7 @@ const paymentRepository = require('./payment-repository');
 const orderService = require('../order/order-service');
 const stockRepository = require('../product/stock-repository');
 const notificationService = require('../admin/notification-service');
+const adminNotificationDispatcher = require('../admin/admin-notification-dispatcher');
 const { transaction } = require('../database/query-builder');
 const Payment = require('../../models/payment');
 const { NotFoundError, ConflictError } = require('../shared/errors');
@@ -78,6 +79,20 @@ class PaymentService {
         // Step 4: Update order payment status (triggers order status transition and notification)
         await orderService.updatePaymentStatus(orderId, 'verified');
         // Notification will be sent by order-service updateOrderStatus listener (T084)
+
+        // Send admin notification for QRIS auto-verification (T121)
+        const updatedOrder = await orderService.getOrderById(orderId);
+        adminNotificationDispatcher
+          .sendToAllAdmins('qris_verified', {
+            order: updatedOrder.toDatabase(),
+            payment: verifiedPayment.toDatabase(),
+          })
+          .catch((error) => {
+            logger.error('Error sending admin notification for QRIS verification', error, {
+              orderId,
+              paymentId: payment.id,
+            });
+          });
 
         logger.info('QRIS payment verified successfully', {
           orderId,
@@ -184,14 +199,30 @@ class PaymentService {
   }
 
   /**
-   * Update payment proof (for manual bank transfer)
+   * Update payment proof (for manual bank transfer) (T116)
    * @param {number} paymentId Payment ID
    * @param {string} paymentProof Payment proof (file ID or URL)
    * @returns {Promise<Payment>}
    */
   async updatePaymentProof(paymentId, paymentProof) {
     try {
-      return await paymentRepository.updatePaymentProof(paymentId, paymentProof);
+      const payment = await paymentRepository.updatePaymentProof(paymentId, paymentProof);
+
+      // Send admin notification for payment proof (T116)
+      const order = await orderService.getOrderById(payment.order_id);
+      adminNotificationDispatcher
+        .sendToAllAdmins('payment_proof', {
+          order: order.toDatabase(),
+          payment: payment.toDatabase(),
+        })
+        .catch((error) => {
+          logger.error('Error sending admin notification for payment proof', error, {
+            paymentId,
+            orderId: payment.order_id,
+          });
+        });
+
+      return payment;
     } catch (error) {
       logger.error('Error updating payment proof', error, { paymentId });
       throw error;
@@ -215,14 +246,30 @@ class PaymentService {
       payment.markAsFailed();
       const failedPayment = await paymentRepository.updateStatus(paymentId, 'failed');
 
-      // Send payment failed notification (T089)
+      // Send payment failed notification to customer (T089)
       try {
         await notificationService.sendOrderStatusNotification(payment.order_id, 'payment_failed', {
           reason,
         });
       } catch (error) {
         // Don't throw - notification failure shouldn't block payment failure
-        logger.error('Error sending payment failed notification', error, {
+        logger.error('Error sending payment failed notification to customer', error, {
+          paymentId,
+          orderId: payment.order_id,
+        });
+      }
+
+      // Send admin notification for payment failure (T122)
+      try {
+        const order = await orderService.getOrderById(payment.order_id);
+        await adminNotificationDispatcher.sendToAllAdmins('payment_failed', {
+          order: order.toDatabase(),
+          payment: failedPayment.toDatabase(),
+          reason,
+        });
+      } catch (error) {
+        // Don't throw - notification failure shouldn't block payment failure
+        logger.error('Error sending admin notification for payment failure', error, {
           paymentId,
           orderId: payment.order_id,
         });

@@ -10,6 +10,7 @@ const orderRepository = require('./order-repository');
 const stockRepository = require('../product/stock-repository');
 const notificationService = require('../admin/notification-service');
 const notificationPubSub = require('../admin/notification-pubsub');
+const adminNotificationDispatcher = require('../admin/admin-notification-dispatcher');
 const { transaction } = require('../database/query-builder');
 const Order = require('../../models/order');
 const { NotFoundError, ConflictError } = require('../shared/errors');
@@ -54,6 +55,16 @@ class OrderService {
           quantity,
           totalAmount,
         });
+
+        // Send admin notification for new order (T115)
+        // Don't await - send asynchronously to not block order creation
+        adminNotificationDispatcher
+          .sendToAllAdmins('new_order', { order: createdOrder.toDatabase() })
+          .catch((error) => {
+            logger.error('Error sending admin notification for new order', error, {
+              orderId: createdOrder.id,
+            });
+          });
 
         return createdOrder;
       });

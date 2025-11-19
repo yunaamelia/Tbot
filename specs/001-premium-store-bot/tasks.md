@@ -241,23 +241,23 @@
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T112 [P] [US6] Integration test for admin order notifications in tests/integration/admin-notifications.test.js (real Telegram API)
-- [ ] T113 [P] [US6] Integration test for admin payment verification in tests/integration/admin-payment-verify.test.js (real Telegram API)
+- [X] T112 [P] [US6] Integration test for admin order notifications in tests/integration/admin-notifications.test.js (real Telegram API)
+- [X] T113 [P] [US6] Integration test for admin payment verification in tests/integration/admin-payment-verify.test.js (real Telegram API)
 
 ### Implementation for User Story 6
 
-- [ ] T114 [US6] Implement admin notification dispatcher in src/lib/admin/admin-notification-dispatcher.js
-- [ ] T115 [US6] Add new order notification: Send to all admins when order created with order details
-- [ ] T116 [US6] Add payment proof notification: Send to admins when manual bank transfer proof uploaded
-- [ ] T117 [US6] Implement payment verification action buttons in admin notifications (Verify/Reject)
-- [ ] T118 [US6] Create callback query handler for admin payment verification actions in bot.js
-- [ ] T119 [US6] Implement payment verification handler: Verify payment and update order status
-- [ ] T120 [US6] Implement payment rejection handler: Reject payment and notify customer
-- [ ] T121 [US6] Add QRIS automatic verification notification: Notify admins when QRIS payment auto-verified
-- [ ] T122 [US6] Add payment failure alert: Notify admins when payment verification fails or requires attention
-- [ ] T123 [US6] Ensure all admin notifications delivered within 5 seconds of event
-- [ ] T124 [US6] Implement admin notification preferences: Respect admin notification settings
-- [ ] T125 [US6] Add notification read status tracking for admin notifications
+- [X] T114 [US6] Implement admin notification dispatcher in src/lib/admin/admin-notification-dispatcher.js
+- [X] T115 [US6] Add new order notification: Send to all admins when order created with order details
+- [X] T116 [US6] Add payment proof notification: Send to admins when manual bank transfer proof uploaded
+- [X] T117 [US6] Implement payment verification action buttons in admin notifications (Verify/Reject)
+- [X] T118 [US6] Create callback query handler for admin payment verification actions in bot.js
+- [X] T119 [US6] Implement payment verification handler: Verify payment and update order status
+- [X] T120 [US6] Implement payment rejection handler: Reject payment and notify customer
+- [X] T121 [US6] Add QRIS automatic verification notification: Notify admins when QRIS payment auto-verified
+- [X] T122 [US6] Add payment failure alert: Notify admins when payment verification fails or requires attention
+- [X] T123 [US6] Ensure all admin notifications delivered within 5 seconds of event
+- [X] T124 [US6] Implement admin notification preferences: Respect admin notification settings
+- [X] T125 [US6] Add notification read status tracking for admin notifications
 
 **Checkpoint**: All user stories should now be independently functional
 

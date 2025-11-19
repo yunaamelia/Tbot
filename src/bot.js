@@ -17,6 +17,8 @@ const manualVerificationHandler = require('./lib/payment/manual-verification');
 const customerService = require('./lib/customer/customer-service');
 const paymentService = require('./lib/payment/payment-service');
 const adminCommands = require('./lib/admin/admin-commands');
+const accessControl = require('./lib/security/access-control');
+const orderService = require('./lib/order/order-service');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -331,6 +333,105 @@ bot.on(
           });
         }
         await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle admin payment verification (T118, T119)
+      if (callbackData.startsWith('admin_payment_verify_')) {
+        const adminId = ctx.from.id;
+        const paymentId = parseInt(callbackData.replace('admin_payment_verify_', ''), 10);
+
+        try {
+          // Require payment_verify permission
+          const admin = await accessControl.requirePermission(adminId, 'payment_verify');
+
+          // Mark notification as read (T125)
+          const adminNotificationDispatcher = require('./lib/admin/admin-notification-dispatcher');
+          if (ctx.callbackQuery.message && ctx.callbackQuery.message.message_id) {
+            adminNotificationDispatcher.markNotificationAsRead(
+              ctx.callbackQuery.message.message_id,
+              adminId
+            );
+          }
+
+          // Verify payment (T119)
+          const payment = await paymentService.verifyManualPayment(paymentId, admin.id);
+          const order = await orderService.getOrderById(payment.order_id);
+
+          // Update message to show verification result
+          const message =
+            `✅ *Pembayaran Diverifikasi*\n\n` +
+            `Pembayaran untuk pesanan #${order.id} telah diverifikasi.\n` +
+            `Status pesanan: ${order.order_status}\n\n` +
+            `Pelanggan telah diberitahu.`;
+
+          await ctx.editMessageText(message, { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Pembayaran berhasil diverifikasi');
+
+          logger.info('Payment verified by admin', {
+            adminId: admin.id,
+            paymentId,
+            orderId: order.id,
+          });
+        } catch (error) {
+          logger.error('Error verifying payment', error, { adminId, paymentId });
+          if (error.name === 'UnauthorizedError') {
+            await ctx.answerCallbackQuery('Anda tidak memiliki izin untuk melakukan tindakan ini');
+          } else {
+            await ctx.answerCallbackQuery('Terjadi kesalahan saat memverifikasi pembayaran');
+          }
+        }
+        return;
+      }
+
+      // Handle admin payment rejection (T118, T120)
+      if (callbackData.startsWith('admin_payment_reject_')) {
+        const adminId = ctx.from.id;
+        const paymentId = parseInt(callbackData.replace('admin_payment_reject_', ''), 10);
+
+        try {
+          // Require payment_verify permission
+          const admin = await accessControl.requirePermission(adminId, 'payment_verify');
+
+          // Mark notification as read (T125)
+          const adminNotificationDispatcher = require('./lib/admin/admin-notification-dispatcher');
+          if (ctx.callbackQuery.message && ctx.callbackQuery.message.message_id) {
+            adminNotificationDispatcher.markNotificationAsRead(
+              ctx.callbackQuery.message.message_id,
+              adminId
+            );
+          }
+
+          // Reject payment (T120)
+          const payment = await paymentService.markPaymentAsFailed(
+            paymentId,
+            'Pembayaran ditolak oleh admin'
+          );
+          const order = await orderService.getOrderById(payment.order_id);
+
+          // Update message to show rejection result
+          const message =
+            `❌ *Pembayaran Ditolak*\n\n` +
+            `Pembayaran untuk pesanan #${order.id} telah ditolak.\n` +
+            `Alasan: Pembayaran ditolak oleh admin\n\n` +
+            `Pelanggan telah diberitahu.`;
+
+          await ctx.editMessageText(message, { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Pembayaran ditolak');
+
+          logger.info('Payment rejected by admin', {
+            adminId: admin.id,
+            paymentId,
+            orderId: order.id,
+          });
+        } catch (error) {
+          logger.error('Error rejecting payment', error, { adminId, paymentId });
+          if (error.name === 'UnauthorizedError') {
+            await ctx.answerCallbackQuery('Anda tidak memiliki izin untuk melakukan tindakan ini');
+          } else {
+            await ctx.answerCallbackQuery('Terjadi kesalahan saat menolak pembayaran');
+          }
+        }
         return;
       }
     } catch (error) {
