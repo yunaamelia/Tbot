@@ -178,6 +178,19 @@ Administrators receive real-time notifications for new orders, payment verificat
 - **FR-046**: System MUST provide intuitive interface with clear, discoverable options for both new and returning customers (Article XIII)
 - **FR-047**: System MUST maintain consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (Article XIII)
 - **FR-048**: System MUST treat UX regressions as defects and address them before release (Article XIII)
+- **FR-049**: System MUST use AES-256 encryption algorithm for credential encryption at rest with secure key management (Article XII)
+- **FR-050**: System MUST implement admin permission levels: 'stock_manage', 'payment_verify', 'store_control', 'order_view', 'customer_view' with role-based access control (Article XII)
+- **FR-051**: System MUST maintain audit logs with fields: admin_id, action_type, entity_type, entity_id, details, timestamp, and retain logs for minimum 90 days (Article XII)
+- **FR-052**: System MUST update stock levels within 1 second of admin input to ensure real-time availability (Article XI)
+- **FR-053**: System MUST implement payment gateway polling fallback mechanism when webhook delivery fails, polling every 30 seconds for up to 5 minutes (Article XI)
+- **FR-054**: System MUST implement retry logic with exponential backoff (1s, 2s, 4s, 8s) for external API calls (Telegram API, payment gateway) with maximum 3 retries (Article XI)
+- **FR-055**: System MUST handle Telegram media groups with maximum 10 files per group, supporting formats: photo (JPEG, PNG), document (PDF, DOCX), video (MP4) (Article VIII)
+- **FR-056**: System MUST implement Telegram webhook endpoint at /webhook/telegram with secret token authentication (TELEGRAM_WEBHOOK_SECRET) and comprehensive error handling (Article VIII)
+- **FR-057**: System MUST implement payment gateway webhook endpoint at /api/payment/callback/qris with HMAC signature verification using SHA-256 algorithm (Article XII)
+- **FR-058**: System MUST handle payment gateway timeout scenarios with 5-minute timeout threshold and automatic retry mechanism (Article XI)
+- **FR-059**: System MUST provide order recovery mechanism after payment verification timeout: allow customer to retry payment verification or contact support for manual verification (Article XI)
+- **FR-060**: System MUST maintain performance targets under load: notification delivery within 15 seconds (vs 10s normal) and payment processing within 60 seconds (vs 30s normal) when handling 1000+ concurrent interactions (Article XI)
+- **FR-061**: System MUST implement graceful degradation: prioritize critical operations (payment verification, order processing) over non-critical operations (recommendations, analytics) under high load (Article XI)
 
 ### Edge Case Requirements
 
@@ -195,6 +208,10 @@ The following edge cases MUST be handled with explicit behaviors:
 - **EC-010**: When customers abandon checkout mid-process, the system MUST automatically clean up reserved stock after a timeout period (e.g., 15 minutes) and release the reservation
 - **EC-011**: When backup and recovery systems need to restore data during active operations, the system MUST pause new order processing, complete in-flight transactions, then restore from backup
 - **EC-012**: When personalization recommendations are requested for a customer with no purchase history, the system MUST provide default recommendations based on popular products or category-based suggestions
+- **EC-013**: When Telegram API is unavailable, the system MUST queue outgoing messages in Redis and retry with exponential backoff, notifying admins of API unavailability
+- **EC-014**: When payment gateway is unavailable, the system MUST queue payment verification requests and retry with exponential backoff, allowing manual verification as fallback
+- **EC-015**: When database connection is lost, the system MUST implement connection retry with exponential backoff (1s, 2s, 4s, 8s) up to 3 retries, then queue operations for later processing
+- **EC-016**: When checkout is abandoned, the system MUST automatically release reserved stock after 15 minutes of inactivity and notify customer of abandoned checkout
 
 ### Key Entities _(include if feature involves data)_
 
