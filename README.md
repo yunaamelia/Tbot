@@ -35,6 +35,11 @@ cp .env.example .env
 # Setup database
 npm run migrate
 npm run seed
+
+# Or use verification scripts (recommended)
+npm run migrate:verify  # Run migrations and verify schema
+npm run seed:verify     # Run seeds and verify data
+npm run setup:db        # Run both migrations and seeds with verification
 ```
 
 ## Development
