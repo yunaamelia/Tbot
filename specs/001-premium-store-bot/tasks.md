@@ -41,21 +41,23 @@
 
 - [ ] T007 Create database migration framework with Knex.js in src/lib/database/migrations/
 - [ ] T008 [P] Create initial database schema migration (001_initial_schema.js) with all tables from data-model.md
-- [ ] T009 [P] Create database indexes migration (002_add_indexes.js) per data-model.md
-- [ ] T010 [P] Implement database connection pool in src/lib/database/db-connection.js with PostgreSQL and MySQL support
-- [ ] T011 [P] Implement database query builder wrapper in src/lib/database/query-builder.js using Knex.js
+- [ ] T009 [P] Create database indexes migration (002_add_indexes.js) per data-model.md for query optimization (FR-039, Article XI)
+- [ ] T010 [P] Implement database connection pool in src/lib/database/db-connection.js with PostgreSQL and MySQL support, including connection pooling configuration (FR-039, Article XI)
+- [ ] T011 [P] Implement database query builder wrapper in src/lib/database/query-builder.js using Knex.js with query optimization support (FR-039, Article XI)
 - [ ] T012 [P] Create environment configuration manager in src/lib/shared/config.js
-- [ ] T013 [P] Create logger utility in src/lib/shared/logger.js with structured logging
+- [ ] T013 [P] Create logger utility in src/lib/shared/logger.js with structured logging for debugging and monitoring (FR-037, Article X)
 - [ ] T014 [P] Create Indonesian language handler in src/lib/shared/i18n.js for all user-facing messages
 - [ ] T015 [P] Implement Telegram Bot API client in src/lib/telegram/api-client.js using Telegraf.js with direct API access
 - [ ] T016 [P] Implement Telegram webhook handler in src/lib/telegram/webhook-handler.js
 - [ ] T017 [P] Create Telegram message builder utility in src/lib/telegram/message-builder.js for inline keyboards and media groups
-- [ ] T018 [P] Setup Express.js webhook server in server.js with HTTPS support
+- [ ] T018 [P] Setup Express.js webhook server in server.js with HTTPS support (FR-045, Article XII)
 - [ ] T019 [P] Implement Redis connection and client in src/lib/shared/redis-client.js using ioredis
-- [ ] T020 Create base error handling middleware and custom error classes
+- [ ] T020 [P] Create base error handling middleware and custom error classes with comprehensive error handling for all bot operations (FR-036, Article X)
 - [ ] T021 [P] Create store configuration service in src/lib/shared/store-config.js for /open and /close commands
-- [ ] T022 Run database migrations and verify schema creation
-- [ ] T023 Seed initial admin user and store configuration in database
+- [ ] T022 [P] Implement caching layer in src/lib/shared/cache.js for product catalog and store configuration (FR-040, Article XI)
+- [ ] T023 [P] Implement input validation and sanitization utility in src/lib/shared/input-validator.js for all external input (FR-043, Article XII)
+- [ ] T024 Run database migrations and verify schema creation
+- [ ] T025 Seed initial admin user and store configuration in database
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -71,22 +73,22 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T024 [P] [US1] Integration test for product browsing in tests/integration/product-browsing.test.js (real Telegram API)
-- [ ] T025 [P] [US1] Integration test for product carousel navigation in tests/integration/product-carousel.test.js (real Telegram API)
+- [ ] T026 [P] [US1] Integration test for product browsing in tests/integration/product-browsing.test.js (real Telegram API)
+- [ ] T027 [P] [US1] Integration test for product carousel navigation in tests/integration/product-carousel.test.js (real Telegram API)
 
 ### Implementation for User Story 1
 
-- [ ] T026 [P] [US1] Create Product model in src/models/product.js with validation
-- [ ] T027 [P] [US1] Create Customer model in src/models/customer.js with Telegram user ID handling
-- [ ] T028 [P] [US1] Implement Product repository in src/lib/product/product-repository.js with database queries
-- [ ] T029 [P] [US1] Implement Product service in src/lib/product/product-service.js with business logic
-- [ ] T030 [US1] Implement product card formatter in src/lib/product/product-card-formatter.js for card-style display
-- [ ] T031 [US1] Implement product carousel handler in src/lib/product/product-carousel-handler.js with inline keyboard navigation
-- [ ] T032 [US1] Create /start command handler in bot.js that shows first product card
-- [ ] T033 [US1] Implement callback query handler for carousel navigation (next/previous buttons) in bot.js
-- [ ] T034 [US1] Add stock availability status display in product cards
-- [ ] T035 [US1] Implement empty product catalog message in Indonesian when no products available
-- [ ] T036 [US1] Add error handling for product browsing operations
+- [ ] T028 [P] [US1] Create Product model in src/models/product.js with validation
+- [ ] T029 [P] [US1] Create Customer model in src/models/customer.js with Telegram user ID handling
+- [ ] T030 [P] [US1] Implement Product repository in src/lib/product/product-repository.js with database queries using caching layer (FR-040, Article XI)
+- [ ] T031 [P] [US1] Implement Product service in src/lib/product/product-service.js with business logic using async operations (FR-041, Article XI)
+- [ ] T032 [US1] Implement product card formatter in src/lib/product/product-card-formatter.js for card-style display with intuitive interface (FR-046, Article XIII)
+- [ ] T033 [US1] Implement product carousel handler in src/lib/product/product-carousel-handler.js with inline keyboard navigation
+- [ ] T034 [US1] Create /start command handler in bot.js that shows first product card
+- [ ] T035 [US1] Implement callback query handler for carousel navigation (next/previous buttons) in bot.js
+- [ ] T036 [US1] Add stock availability status display in product cards
+- [ ] T037 [US1] Implement empty product catalog message in Indonesian when no products available
+- [ ] T038 [US1] Add error handling for product browsing operations with structured logging (FR-036, Article X)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -263,7 +265,7 @@
 
 ## Phase 9: Security & Account Delivery
 
-**Purpose**: Implement security-first approach for premium account delivery (FR-019 through FR-022, FR-031, FR-032)
+**Purpose**: Implement security-first approach for premium account delivery (FR-019 through FR-022, FR-031, FR-032, FR-043, FR-044, FR-045)
 
 - [ ] T126 [P] Implement encryption service in src/lib/security/encryption-service.js using Node.js crypto (AES-256)
 - [ ] T127 [P] Implement credential delivery service in src/lib/security/credential-delivery.js with secure channel
@@ -275,6 +277,9 @@
 - [ ] T133 Add credential delivery validation: Verify order status and payment before delivery
 - [ ] T134 [P] Implement HMAC signature verification for payment gateway webhooks in src/lib/payment/webhook-verifier.js (FR-031)
 - [ ] T135 [P] Implement admin authentication using Telegram user ID whitelist validation in src/lib/security/access-control.js (FR-032)
+- [ ] T136 [P] Integrate input validation and sanitization in all webhook handlers and command processors using input-validator.js (FR-043, Article XII)
+- [ ] T137 [P] Implement credential protection: Ensure no credentials, API keys, or secrets are written to logs, error messages, or telemetry (FR-044, Article XII)
+- [ ] T138 [P] Verify and enforce HTTPS/TLS for all external service communications (Telegram API, payment gateways, databases) (FR-045, Article XII)
 
 ---
 
@@ -282,15 +287,15 @@
 
 **Purpose**: Implement FAQ system, live chat, and personalization features
 
-- [ ] T134 [P] Implement FAQ handler in src/lib/customer-service/faq-handler.js with common questions in Indonesian
-- [ ] T135 [P] Implement chat handler in src/lib/customer-service/chat-handler.js for live admin chat
-- [ ] T136 [P] Implement ticket service in src/lib/customer-service/ticket-service.js for support tickets
-- [ ] T137 Implement personalization engine in src/lib/customer-service/personalization-engine.js
-- [ ] T138 Add customer name personalization: Use customer name in messages
-- [ ] T139 Add purchase history-based recommendations: Suggest products based on past purchases
-- [ ] T140 Add behavior-based recommendations: Suggest products based on browsing patterns
-- [ ] T141 Implement /help command with FAQ access
-- [ ] T142 Implement customer service routing: Route to FAQ or live admin based on query type
+- [ ] T139 [P] Implement FAQ handler in src/lib/customer-service/faq-handler.js with common questions in Indonesian
+- [ ] T140 [P] Implement chat handler in src/lib/customer-service/chat-handler.js for live admin chat
+- [ ] T141 [P] Implement ticket service in src/lib/customer-service/ticket-service.js for support tickets
+- [ ] T142 Implement personalization engine in src/lib/customer-service/personalization-engine.js
+- [ ] T143 Add customer name personalization: Use customer name in messages
+- [ ] T144 Add purchase history-based recommendations: Suggest products based on past purchases
+- [ ] T145 Add behavior-based recommendations: Suggest products based on browsing patterns
+- [ ] T146 Implement /help command with FAQ access
+- [ ] T147 Implement customer service routing: Route to FAQ or live admin based on query type
 
 ---
 
@@ -315,16 +320,19 @@
 - [ ] T150 [P] Add comprehensive error messages in Indonesian for all error scenarios (FR-034)
 - [ ] T151 [P] Implement request rate limiting for webhook endpoints using express-rate-limit (FR-035)
 - [ ] T152 [P] Add performance monitoring and logging for all critical operations
-- [ ] T153 [P] Create API documentation in docs/api.md
+- [ ] T153 [P] Create API documentation in docs/api.md documenting all public library interfaces and APIs, keeping in sync with implementation (FR-038, Article X)
 - [ ] T154 [P] Add unit tests for all library modules in tests/unit/lib/
 - [ ] T155 [P] Add unit tests for all models in tests/unit/models/
 - [ ] T156 Implement connection retry logic for database and Redis
 - [ ] T157 Implement graceful shutdown handling for webhook server
 - [ ] T158 Add health check endpoint for monitoring
-- [ ] T159 Run quickstart.md validation: Verify all test scenarios pass
-- [ ] T160 Code cleanup and refactoring: Remove unused code, optimize queries
-- [ ] T161 Security audit: Review all security implementations
-- [ ] T162 Performance optimization: Optimize database queries and Redis usage
+- [ ] T159 [P] Implement resource usage monitoring and optimization for scalability targets (1000+ concurrent interactions) (FR-042, Article XI)
+- [ ] T160 Run quickstart.md validation: Verify all test scenarios pass
+- [ ] T161 Code cleanup and refactoring: Remove unused code, optimize queries
+- [ ] T162 Security audit: Review all security implementations
+- [ ] T163 Performance optimization: Optimize database queries and Redis usage
+- [ ] T164 [P] Ensure consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (FR-047, Article XIII)
+- [ ] T165 [P] Implement UX regression detection and handling process: Treat UX regressions as defects and address before release (FR-048, Article XIII)
 
 ---
 
@@ -445,21 +453,23 @@ With multiple developers:
 
 ## Task Summary
 
-- **Total Tasks**: 164
+- **Total Tasks**: 177 (updated with Constitution v1.1.0 requirements)
 - **Setup Tasks**: 6 (Phase 1)
-- **Foundational Tasks**: 17 (Phase 2)
-- **User Story 1 Tasks**: 13 (Phase 3)
+- **Foundational Tasks**: 19 (Phase 2) - includes caching (FR-040), input validation (FR-043), structured logging (FR-037), error handling (FR-036)
+- **User Story 1 Tasks**: 13 (Phase 3) - includes async operations (FR-041), caching integration (FR-040), intuitive UX (FR-046), error handling (FR-036)
 - **User Story 2 Tasks**: 8 (Phase 4)
 - **User Story 3 Tasks**: 29 (Phase 5)
 - **User Story 4 Tasks**: 16 (Phase 6)
 - **User Story 5 Tasks**: 20 (Phase 7) - includes FR-029 admin interface tasks
 - **User Story 6 Tasks**: 14 (Phase 8)
-- **Security Tasks**: 10 (Phase 9) - includes HMAC verification and admin authentication
+- **Security Tasks**: 13 (Phase 9) - includes HMAC verification (FR-031), admin authentication (FR-032), input validation (FR-043), credential protection (FR-044), secure transport (FR-045)
 - **Customer Service Tasks**: 9 (Phase 10)
 - **Backup Tasks**: 7 (Phase 11)
-- **Polish Tasks**: 13 (Phase 12)
+- **Polish Tasks**: 16 (Phase 12) - includes API documentation (FR-038), resource monitoring (FR-042), consistent UX (FR-047), UX regression handling (FR-048)
 
-**Parallel Opportunities**: 47 tasks marked [P] can run in parallel
+**Parallel Opportunities**: 50+ tasks marked [P] can run in parallel
 
-**MVP Scope**: Phases 1-3 (Setup + Foundational + User Story 1) = 36 tasks
+**MVP Scope**: Phases 1-3 (Setup + Foundational + User Story 1) = 38 tasks
+
+**Constitution Compliance**: All new requirements (FR-036 through FR-048) have corresponding tasks mapped to Articles X, XI, XII, XIII
 

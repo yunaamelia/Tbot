@@ -2,8 +2,20 @@
 
 **Feature Branch**: `001-premium-store-bot`  
 **Created**: 2025-11-19  
+**Updated**: 2025-01-27 (aligned with Constitution v1.1.0 - Articles X, XI, XII, XIII)  
 **Status**: Draft  
 **Input**: User description: "Telegram bot assistant for premium account store selling GitHub Copilot, GitHub Student, cloud panel accounts, and similar premium digital products."
+
+## Constitution Compliance
+
+This specification aligns with Storebot Constitution v1.1.0:
+
+- **Article X (Code Quality Standards)**: Requirements FR-036, FR-037, FR-038 ensure comprehensive error handling, structured logging, and API documentation
+- **Article XI (Performance & Efficiency)**: Requirements FR-039, FR-040, FR-041, FR-042 ensure database optimization, caching, async operations, and resource monitoring
+- **Article XII (Security First)**: Requirements FR-043, FR-044, FR-045 enhance security with input validation, credential protection, and secure transport
+- **Article XIII (User Experience)**: Requirements FR-046, FR-047, FR-048 ensure intuitive interfaces, consistent UX, and UX regression handling
+
+Success Criteria SC-015 through SC-021 provide measurable outcomes aligned with these constitution articles.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -153,6 +165,19 @@ Administrators receive real-time notifications for new orders, payment verificat
 - **FR-033**: System MUST use database transactions for order creation and stock updates to ensure atomicity
 - **FR-034**: System MUST provide specific error messages in Indonesian for all failure scenarios (network errors, payment failures, stock conflicts, etc.)
 - **FR-035**: System MUST implement rate limiting for Telegram Bot API calls and webhook endpoints to prevent abuse
+- **FR-036**: System MUST implement comprehensive error handling for all bot operations and external integrations with structured error logging (Article X)
+- **FR-037**: System MUST provide structured logging that supports debugging and basic monitoring for all critical operations (Article X)
+- **FR-038**: System MUST document all public library interfaces and APIs, keeping documentation in sync with implementation (Article X)
+- **FR-039**: System MUST optimize database queries with proper indexing and connection pooling to meet performance targets (Article XI)
+- **FR-040**: System MUST implement caching for repeated operations (product catalog, store configuration) when correctness allows (Article XI)
+- **FR-041**: System MUST use async operations to keep the bot non-blocking and responsive during all operations (Article XI)
+- **FR-042**: System MUST monitor resource usage and optimize for scalability targets (1000+ concurrent interactions) (Article XI)
+- **FR-043**: System MUST validate and sanitize all external input (user messages, webhook callbacks, admin commands) before processing (Article XII)
+- **FR-044**: System MUST never write credentials, API keys, or secrets to logs, error messages, or telemetry (Article XII)
+- **FR-045**: System MUST use secure transport (HTTPS/TLS) for all communication with external services (Telegram API, payment gateways, databases) (Article XII)
+- **FR-046**: System MUST provide intuitive interface with clear, discoverable options for both new and returning customers (Article XIII)
+- **FR-047**: System MUST maintain consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (Article XIII)
+- **FR-048**: System MUST treat UX regressions as defects and address them before release (Article XIII)
 
 ### Edge Case Requirements
 
@@ -205,3 +230,10 @@ The following edge cases MUST be handled with explicit behaviors:
 - **SC-012**: 90% of customers rate the rich media UI/UX experience as satisfactory or better
 - **SC-013**: System personalization increases repeat purchase rate by 30% compared to non-personalized experience
 - **SC-014**: FAQ system resolves 70% of customer inquiries without requiring live admin intervention
+- **SC-015**: All critical operations have structured error logging with 100% coverage of failure scenarios (Article X)
+- **SC-016**: Database query response times remain under 100ms for 95% of queries through proper indexing and connection pooling (Article XI)
+- **SC-017**: System cache hit rate exceeds 80% for product catalog and store configuration lookups (Article XI)
+- **SC-018**: Zero incidents of credential exposure in logs, error messages, or telemetry (Article XII)
+- **SC-019**: 100% of external input (user messages, webhooks, admin commands) is validated and sanitized before processing (Article XII)
+- **SC-020**: 95% of new customers successfully complete their first product browse and view details without confusion (Article XIII)
+- **SC-021**: UX consistency rating of 90% or higher across all user interaction flows (browsing, checkout, notifications) (Article XIII)
