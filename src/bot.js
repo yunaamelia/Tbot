@@ -1,15 +1,16 @@
 /**
  * Main Telegram bot entry point
- * Handles commands and callback queries for product browsing
+ * Handles commands and callback queries for product browsing and details
  *
- * Tasks: T034, T035
- * Requirements: FR-001, FR-002
+ * Tasks: T034, T035, T042, T043, T044, T046
+ * Requirements: FR-001, FR-002, FR-003, FR-044, FR-046
  */
 
 const { getBot } = require('./lib/telegram/api-client');
 const productService = require('./lib/product/product-service');
 const productCardFormatter = require('./lib/product/product-card-formatter');
 const productCarouselHandler = require('./lib/product/product-carousel-handler');
+const productDetailsHandler = require('./lib/product/product-details-handler');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -88,7 +89,56 @@ bot.on(
         return;
       }
 
-      // Handle other callback queries (product_detail, product_buy) - will be implemented in later phases
+      // Handle product details view (T042, T043)
+      const productDetailsData = productDetailsHandler.parseCallbackData(callbackData);
+      if (productDetailsData) {
+        const response = await productDetailsHandler.handleProductDetails(
+          productDetailsData.productId,
+          productDetailsData.carouselIndex
+        );
+
+        if (response.type === 'media_group') {
+          // Send media group with caption
+          try {
+            await ctx.replyWithMediaGroup(response.mediaGroup);
+            // Also send text message with buttons (since media group caption is limited)
+            await ctx.reply(response.textMessage.text, {
+              parse_mode: response.textMessage.parse_mode,
+              reply_markup: response.textMessage.reply_markup,
+            });
+          } catch (error) {
+            logger.error('Error sending media group, falling back to text', error);
+            // Fallback to text-only if media group fails
+            await ctx.editMessageText(response.textMessage.text, {
+              parse_mode: response.textMessage.parse_mode,
+              reply_markup: response.textMessage.reply_markup,
+            });
+          }
+        } else {
+          // Text-only display (T044)
+          await ctx.editMessageText(response.message.text, {
+            parse_mode: response.message.parse_mode,
+            reply_markup: response.message.reply_markup,
+          });
+        }
+
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle carousel return (T046)
+      const carouselData = productDetailsHandler.parseCarouselCallback(callbackData);
+      if (carouselData) {
+        const cardMessage = await productCarouselHandler.getProductCard(carouselData.index);
+        await ctx.editMessageText(cardMessage.text, {
+          parse_mode: cardMessage.parse_mode,
+          reply_markup: cardMessage.reply_markup,
+        });
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle other callback queries (product_buy) - will be implemented in later phases
       await ctx.answerCallbackQuery('Fitur ini akan segera tersedia');
     } catch (error) {
       logger.error('Error handling callback query', error);

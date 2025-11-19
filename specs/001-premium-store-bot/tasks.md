@@ -102,19 +102,19 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T037 [P] [US2] Integration test for product details view in tests/integration/product-details.test.js (real Telegram API)
-- [ ] T038 [P] [US2] Integration test for media group display in tests/integration/media-group.test.js (real Telegram API)
+- [X] T037 [P] [US2] Integration test for product details view in tests/integration/product-details.test.js (real Telegram API)
+- [X] T038 [P] [US2] Integration test for media group display in tests/integration/media-group.test.js (real Telegram API)
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] Implement product details formatter in src/lib/product/product-details-formatter.js
-- [ ] T040 [US2] Implement media group builder in src/lib/telegram/media-group-builder.js for multiple images/documents
-- [ ] T041 [US2] Add "Lihat Detail" (View Details) button to product cards in product-card-formatter.js
-- [ ] T042 [US2] Create callback query handler for product details view in bot.js
-- [ ] T043 [US2] Implement product details display with media group, description, price, features, and stock status
-- [ ] T044 [US2] Handle products with no media (display text-only information) in product-details-formatter.js
-- [ ] T045 [US2] Ensure all product detail text content is in Indonesian language
-- [ ] T046 [US2] Add "Kembali" (Back) button to return to product carousel from details view
+- [X] T039 [US2] Implement product details formatter in src/lib/product/product-details-formatter.js
+- [X] T040 [US2] Implement media group builder in src/lib/telegram/media-group-builder.js for multiple images/documents
+- [X] T041 [US2] Add "Lihat Detail" (View Details) button to product cards in product-card-formatter.js
+- [X] T042 [US2] Create callback query handler for product details view in bot.js
+- [X] T043 [US2] Implement product details display with media group, description, price, features, and stock status
+- [X] T044 [US2] Handle products with no media (display text-only information) in product-details-formatter.js
+- [X] T045 [US2] Ensure all product detail text content is in Indonesian language
+- [X] T046 [US2] Add "Kembali" (Back) button to return to product carousel from details view
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
