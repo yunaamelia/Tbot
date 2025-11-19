@@ -173,25 +173,25 @@
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T076 [P] [US4] Integration test for order status notifications in tests/integration/order-notifications.test.js (real Telegram API)
-- [ ] T077 [P] [US4] Integration test for notification delivery timing in tests/integration/notification-timing.test.js (real Telegram API)
+- [X] T076 [P] [US4] Integration test for order status notifications in tests/integration/order-notifications.test.js (real Telegram API)
+- [X] T077 [P] [US4] Integration test for notification delivery timing in tests/integration/notification-timing.test.js (real Telegram API)
 
 ### Implementation for User Story 4
 
-- [ ] T078 [P] [US4] Create Notification model in src/models/notification.js
-- [ ] T079 [P] [US4] Implement Notification repository in src/lib/admin/notification-repository.js
-- [ ] T080 [US4] Implement Notification service in src/lib/admin/notification-service.js with rich media support
-- [ ] T081 [US4] Implement Redis pub/sub for real-time notification delivery in src/lib/admin/notification-pubsub.js
-- [ ] T082 [US4] Create order status notification templates in src/lib/shared/notification-templates.js (Indonesian)
-- [ ] T083 [US4] Implement notification sender in src/lib/admin/notification-sender.js using Telegram Bot API
-- [ ] T084 [US4] Add order status change listener: Trigger notification when payment verified
-- [ ] T085 [US4] Add order status change listener: Trigger notification when order processing starts
-- [ ] T086 [US4] Add order status change listener: Trigger notification when account delivered
-- [ ] T087 [US4] Add order status change listener: Trigger notification when order completed
-- [ ] T088 [US4] Implement progress indicators in notification messages (visual status indicators)
-- [ ] T089 [US4] Implement payment failure notification with next steps in Indonesian
-- [ ] T090 [US4] Ensure all notifications delivered within 10 seconds of status change
-- [ ] T091 [US4] Add notification delivery retry logic for failed sends
+- [X] T078 [P] [US4] Create Notification model in src/models/notification.js
+- [X] T079 [P] [US4] Implement Notification repository in src/lib/admin/notification-repository.js
+- [X] T080 [US4] Implement Notification service in src/lib/admin/notification-service.js with rich media support
+- [X] T081 [US4] Implement Redis pub/sub for real-time notification delivery in src/lib/admin/notification-pubsub.js
+- [X] T082 [US4] Create order status notification templates in src/lib/shared/notification-templates.js (Indonesian)
+- [X] T083 [US4] Implement notification sender in src/lib/admin/notification-sender.js using Telegram Bot API
+- [X] T084 [US4] Add order status change listener: Trigger notification when payment verified - Integrated in order-service.js updatePaymentStatus()
+- [X] T085 [US4] Add order status change listener: Trigger notification when order processing starts - Integrated in order-service.js updateOrderStatus()
+- [X] T086 [US4] Add order status change listener: Trigger notification when account delivered - Integrated in order-service.js updateCredentials()
+- [X] T087 [US4] Add order status change listener: Trigger notification when order completed - Integrated in order-service.js updateOrderStatus()
+- [X] T088 [US4] Implement progress indicators in notification messages (visual status indicators) - Added progress bars in notification templates
+- [X] T089 [US4] Implement payment failure notification with next steps in Indonesian - Integrated in payment-service.js markPaymentAsFailed()
+- [X] T090 [US4] Ensure all notifications delivered within 10 seconds of status change - Implemented timeout in notification-service.js
+- [X] T091 [US4] Add notification delivery retry logic for failed sends - Implemented in notification-sender.js and notification-retry-scheduler.js
 
 **Checkpoint**: At this point, User Stories 1-4 should all work independently
 

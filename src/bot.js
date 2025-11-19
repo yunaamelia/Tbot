@@ -311,6 +311,14 @@ if (require.main === module) {
     .launch()
     .then(() => {
       logger.info('Bot launched successfully');
+
+      // Start checkout timeout cleanup scheduler (T074)
+      const checkoutTimeout = require('./lib/order/checkout-timeout');
+      checkoutTimeout.startCleanupScheduler();
+
+      // Start notification retry scheduler (T091)
+      const notificationRetryScheduler = require('./lib/admin/notification-retry-scheduler');
+      notificationRetryScheduler.startScheduler();
     })
     .catch((err) => {
       logger.error('Failed to launch bot', err);

@@ -8,6 +8,8 @@
 
 const orderRepository = require('./order-repository');
 const stockRepository = require('../product/stock-repository');
+const notificationService = require('../admin/notification-service');
+const notificationPubSub = require('../admin/notification-pubsub');
 const { transaction } = require('../database/query-builder');
 const Order = require('../../models/order');
 const { NotFoundError, ConflictError } = require('../shared/errors');
@@ -107,6 +109,7 @@ class OrderService {
 
   /**
    * Update order status (with state machine validation)
+   * Triggers notification listeners (T084-T087)
    * @param {number} orderId Order ID
    * @param {string} newStatus New order status
    * @returns {Promise<Order>}
@@ -116,20 +119,80 @@ class OrderService {
     try {
       const order = await this.getOrderById(orderId);
 
-      // Validate state machine transition
-      if (!order.canTransitionTo(newStatus)) {
-        throw new ConflictError(
-          `Cannot transition order ${orderId} from ${order.order_status} to ${newStatus}`
-        );
+      // Validate state machine transition using transitionStatus method
+      try {
+        order.transitionStatus(newStatus);
+      } catch (error) {
+        if (error.name === 'ValidationError' || error.message.includes('Cannot transition')) {
+          throw new ConflictError(
+            `Cannot transition order ${orderId} from ${order.order_status} to ${newStatus}`
+          );
+        }
+        throw error;
       }
 
-      return await orderRepository.updateStatus(orderId, newStatus);
+      const updatedOrder = await orderRepository.updateStatus(orderId, newStatus);
+
+      // Publish status change event (T081)
+      await notificationPubSub.publishStatusChange(orderId, newStatus, {
+        customerId: order.customer_id,
+        productId: order.product_id,
+      });
+
+      // Trigger notification based on status (T084-T087)
+      await this.triggerStatusNotification(orderId, newStatus, updatedOrder);
+
+      return updatedOrder;
     } catch (error) {
       if (error instanceof NotFoundError || error instanceof ConflictError) {
         throw error;
       }
       logger.error('Error updating order status', error, { orderId, newStatus });
       throw error;
+    }
+  }
+
+  /**
+   * Trigger notification based on order status change (T084-T087)
+   * @param {number} orderId Order ID
+   * @param {string} status New status
+   * @param {Order} order Order object
+   * @returns {Promise<void>}
+   */
+  async triggerStatusNotification(orderId, status, order) {
+    try {
+      let notificationType = null;
+
+      switch (status) {
+        case 'payment_received':
+          notificationType = 'payment_received';
+          break;
+        case 'processing':
+          notificationType = 'processing';
+          break;
+        case 'account_delivered':
+          notificationType = 'account_delivered';
+          break;
+        case 'completed':
+          notificationType = 'completed';
+          break;
+        default:
+          // No notification for other statuses
+          return;
+      }
+
+      if (notificationType) {
+        // Get product name for notification
+        const productService = require('../product/product-service');
+        const product = await productService.getProductById(order.product_id);
+
+        await notificationService.sendOrderStatusNotification(orderId, notificationType, {
+          productName: product ? product.name : 'Produk',
+        });
+      }
+    } catch (error) {
+      // Don't throw - notification failure shouldn't block order status update
+      logger.error('Error triggering status notification', error, { orderId, status });
     }
   }
 
@@ -146,6 +209,7 @@ class OrderService {
       // Auto-transition order status based on payment status
       if (paymentStatus === 'verified' && order.order_status === 'pending_payment') {
         await this.updateOrderStatus(orderId, 'payment_received');
+        // Notification will be sent by updateOrderStatus listener
       }
 
       return order;
@@ -181,13 +245,22 @@ class OrderService {
 
   /**
    * Update order with account credentials (encrypted)
+   * Triggers account_delivered notification (T086)
    * @param {number} orderId Order ID
    * @param {string} encryptedCredentials Encrypted credentials
    * @returns {Promise<Order>}
    */
   async updateCredentials(orderId, encryptedCredentials) {
     try {
-      return await orderRepository.updateCredentials(orderId, encryptedCredentials);
+      const order = await orderRepository.updateCredentials(orderId, encryptedCredentials);
+
+      // Update status to account_delivered and trigger notification
+      if (order.order_status === 'processing') {
+        await this.updateOrderStatus(orderId, 'account_delivered');
+        // Notification will be sent by updateOrderStatus
+      }
+
+      return order;
     } catch (error) {
       logger.error('Error updating order credentials', error, { orderId });
       throw error;

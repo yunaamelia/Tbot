@@ -9,6 +9,7 @@
 const paymentRepository = require('./payment-repository');
 const orderService = require('../order/order-service');
 const stockRepository = require('../product/stock-repository');
+const notificationService = require('../admin/notification-service');
 const { transaction } = require('../database/query-builder');
 const Payment = require('../../models/payment');
 const { NotFoundError, ConflictError } = require('../shared/errors');
@@ -74,8 +75,9 @@ class PaymentService {
         // Step 3: Deduct stock with lock
         await stockRepository.deductWithLock(order.product_id, order.quantity, trx);
 
-        // Step 4: Update order payment status (triggers order status transition)
+        // Step 4: Update order payment status (triggers order status transition and notification)
         await orderService.updatePaymentStatus(orderId, 'verified');
+        // Notification will be sent by order-service updateOrderStatus listener (T084)
 
         logger.info('QRIS payment verified successfully', {
           orderId,
@@ -198,10 +200,12 @@ class PaymentService {
 
   /**
    * Mark payment as failed
+   * Triggers payment_failed notification (T089)
    * @param {number} paymentId Payment ID
+   * @param {string} reason Failure reason
    * @returns {Promise<Payment>}
    */
-  async markPaymentAsFailed(paymentId) {
+  async markPaymentAsFailed(paymentId, reason = 'Verifikasi pembayaran gagal') {
     try {
       const payment = await paymentRepository.findById(paymentId);
       if (!payment) {
@@ -209,7 +213,22 @@ class PaymentService {
       }
 
       payment.markAsFailed();
-      return await paymentRepository.updateStatus(paymentId, 'failed');
+      const failedPayment = await paymentRepository.updateStatus(paymentId, 'failed');
+
+      // Send payment failed notification (T089)
+      try {
+        await notificationService.sendOrderStatusNotification(payment.order_id, 'payment_failed', {
+          reason,
+        });
+      } catch (error) {
+        // Don't throw - notification failure shouldn't block payment failure
+        logger.error('Error sending payment failed notification', error, {
+          paymentId,
+          orderId: payment.order_id,
+        });
+      }
+
+      return failedPayment;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
