@@ -142,18 +142,18 @@
 - [X] T055 [P] [US3] Implement Payment repository in src/lib/payment/payment-repository.js
 - [X] T056 [P] [US3] Implement Stock repository in src/lib/product/stock-repository.js
 - [X] T057 [US3] Implement Order service in src/lib/order/order-service.js with order creation and status management using database transactions (FR-033)
-- [ ] T058 [US3] Implement Checkout handler in src/lib/order/checkout-handler.js with step-by-step wizard
-- [ ] T059 [US3] Implement QRIS payment handler in src/lib/payment/qris-handler.js with Duitku SDK integration
-- [ ] T060 [US3] Implement manual bank transfer handler in src/lib/payment/manual-verification.js with payment proof upload
+- [X] T058 [US3] Implement Checkout handler in src/lib/order/checkout-handler.js with step-by-step wizard
+- [X] T059 [US3] Implement QRIS payment handler in src/lib/payment/qris-handler.js with Duitku SDK integration
+- [X] T060 [US3] Implement manual bank transfer handler in src/lib/payment/manual-verification.js with payment proof upload
 - [X] T061 [US3] Implement Payment service in src/lib/payment/payment-service.js with payment verification logic
-- [ ] T062 [US3] Create payment callback endpoint in server.js for Duitku webhook (POST /api/payment/callback/qris)
-- [ ] T063 [US3] Implement payment status polling endpoint in server.js (GET /api/payment/callback/status)
-- [ ] T064 [US3] Add "Beli" (Buy) button to product details view
-- [ ] T065 [US3] Implement checkout wizard step 1: Order summary display with product confirmation
-- [ ] T066 [US3] Implement checkout wizard step 2: Payment method selection (QRIS or Bank Transfer)
-- [ ] T067 [US3] Implement QRIS payment flow: Generate QRIS code/image and display instructions
-- [ ] T068 [US3] Implement manual bank transfer flow: Display bank account details and payment proof upload prompt
-- [ ] T069 [US3] Implement automatic QRIS payment verification via webhook callback
+- [X] T062 [US3] Create payment callback endpoint in server.js for Duitku webhook (POST /api/payment/callback/qris)
+- [X] T063 [US3] Implement payment status polling endpoint in server.js (GET /api/payment/callback/status)
+- [X] T064 [US3] Add "Beli" (Buy) button to product details view
+- [X] T065 [US3] Implement checkout wizard step 1: Order summary display with product confirmation
+- [X] T066 [US3] Implement checkout wizard step 2: Payment method selection (QRIS or Bank Transfer)
+- [X] T067 [US3] Implement QRIS payment flow: Generate QRIS code/image and display instructions
+- [X] T068 [US3] Implement manual bank transfer flow: Display bank account details and payment proof upload prompt
+- [X] T069 [US3] Implement automatic QRIS payment verification via webhook callback
 - [X] T070 [US3] Implement stock reservation when order is created (reserve quantity) using database transactions with row-level locking (FR-033) - Implemented in order-service.js and stock-repository.js
 - [X] T071 [US3] Implement stock deduction when payment is verified (decrease current quantity, decrease reserved) - Implemented in payment-service.js and stock-repository.js
 - [X] T072 [US3] Implement out-of-stock validation: Prevent purchase when stock is zero - Implemented in checkout-handler.js startCheckout()
