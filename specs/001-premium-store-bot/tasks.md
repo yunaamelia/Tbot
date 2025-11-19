@@ -205,29 +205,29 @@
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T092 [P] [US5] Integration test for admin stock commands in tests/integration/admin-stock.test.js (real Telegram API)
-- [ ] T093 [P] [US5] Integration test for store open/close commands in tests/integration/store-control.test.js (real Telegram API)
+- [X] T092 [P] [US5] Integration test for admin stock commands in tests/integration/admin-stock.test.js (real Telegram API)
+- [X] T093 [P] [US5] Integration test for store open/close commands in tests/integration/store-control.test.js (real Telegram API)
 
 ### Implementation for User Story 5
 
-- [ ] T094 [P] [US5] Create Admin model in src/models/admin.js with permissions
-- [ ] T095 [P] [US5] Implement Admin repository in src/lib/admin/admin-repository.js
-- [ ] T096 [P] [US5] Implement access control service in src/lib/security/access-control.js for admin authentication
-- [ ] T097 [US5] Implement Stock manager in src/lib/product/stock-manager.js with stock update logic
-- [ ] T098 [US5] Create /stock command handler in src/lib/admin/admin-commands.js for stock updates
-- [ ] T099 [US5] Implement stock update command: /stock update <product_id> <quantity>
-- [ ] T100 [US5] Create /open command handler in src/lib/admin/admin-commands.js
-- [ ] T101 [US5] Create /close command handler in src/lib/admin/admin-commands.js
-- [ ] T102 [US5] Implement store status check in product browsing: Block access when store closed
-- [ ] T103 [US5] Implement store status check in checkout: Block purchase when store closed
-- [ ] T104 [US5] Implement automatic product availability update when stock reaches zero
-- [ ] T105 [US5] Implement automatic product availability update when stock added to out-of-stock product
-- [ ] T106 [US5] Add admin command registration in bot.js
-- [ ] T107 [US5] Implement admin permission validation for stock and store commands
-- [ ] T108 [US5] Add stock update confirmation message to admin after update
-- [ ] T109 [US5] Add store status change confirmation message to admin
-- [ ] T110 [US5] Implement admin interface for viewing order history in src/lib/admin/admin-interface.js (FR-029)
-- [ ] T111 [US5] Implement admin interface for viewing customer information in src/lib/admin/admin-interface.js (FR-029)
+- [X] T094 [P] [US5] Create Admin model in src/models/admin.js with permissions
+- [X] T095 [P] [US5] Implement Admin repository in src/lib/admin/admin-repository.js
+- [X] T096 [P] [US5] Implement access control service in src/lib/security/access-control.js for admin authentication
+- [X] T097 [US5] Implement Stock manager in src/lib/product/stock-manager.js with stock update logic
+- [X] T098 [US5] Create /stock command handler in src/lib/admin/admin-commands.js for stock updates
+- [X] T099 [US5] Implement stock update command: /stock update <product_id> <quantity>
+- [X] T100 [US5] Create /open command handler in src/lib/admin/admin-commands.js
+- [X] T101 [US5] Create /close command handler in src/lib/admin/admin-commands.js
+- [X] T102 [US5] Implement store status check in product browsing: Block access when store closed
+- [X] T103 [US5] Implement store status check in checkout: Block purchase when store closed
+- [X] T104 [US5] Implement automatic product availability update when stock reaches zero
+- [X] T105 [US5] Implement automatic product availability update when stock added to out-of-stock product
+- [X] T106 [US5] Add admin command registration in bot.js
+- [X] T107 [US5] Implement admin permission validation for stock and store commands
+- [X] T108 [US5] Add stock update confirmation message to admin after update
+- [X] T109 [US5] Add store status change confirmation message to admin
+- [X] T110 [US5] Implement admin interface for viewing order history in src/lib/admin/admin-interface.js (FR-029)
+- [X] T111 [US5] Implement admin interface for viewing customer information in src/lib/admin/admin-interface.js (FR-029)
 
 **Checkpoint**: At this point, User Stories 1-5 should all work independently
 

@@ -16,6 +16,7 @@ const qrisHandler = require('./lib/payment/qris-handler');
 const manualVerificationHandler = require('./lib/payment/manual-verification');
 const customerService = require('./lib/customer/customer-service');
 const paymentService = require('./lib/payment/payment-service');
+const adminCommands = require('./lib/admin/admin-commands');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -23,6 +24,53 @@ const i18n = require('./lib/shared/i18n');
 
 // Get bot instance (already initialized in api-client)
 const bot = getBot();
+
+/**
+ * Admin command handlers (T106)
+ */
+
+// /stock command handler (T098, T099)
+bot.command(
+  'stock',
+  asyncHandler(async (ctx) => {
+    try {
+      const commandArgs = ctx.message.text.replace('/stock', '').trim();
+      const response = await adminCommands.handleStockCommand(ctx.from.id, commandArgs);
+      await ctx.reply(response.text, { parse_mode: response.parse_mode });
+    } catch (error) {
+      logger.error('Error handling /stock command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
+
+// /open command handler (T100)
+bot.command(
+  'open',
+  asyncHandler(async (ctx) => {
+    try {
+      const response = await adminCommands.handleOpenCommand(ctx.from.id);
+      await ctx.reply(response.text, { parse_mode: response.parse_mode });
+    } catch (error) {
+      logger.error('Error handling /open command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
+
+// /close command handler (T101)
+bot.command(
+  'close',
+  asyncHandler(async (ctx) => {
+    try {
+      const response = await adminCommands.handleCloseCommand(ctx.from.id);
+      await ctx.reply(response.text, { parse_mode: response.parse_mode });
+    } catch (error) {
+      logger.error('Error handling /close command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
 
 /**
  * /start command handler

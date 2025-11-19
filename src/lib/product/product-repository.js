@@ -148,6 +148,48 @@ class ProductRepository {
       // Don't throw - cache invalidation failure shouldn't break the flow
     }
   }
+
+  /**
+   * Update product availability status
+   * @param {number} productId Product ID
+   * @param {string} availabilityStatus New availability status
+   * @returns {Promise<void>}
+   */
+  async updateAvailabilityStatus(productId, availabilityStatus) {
+    try {
+      await table('products').where('id', productId).update({
+        availability_status: availabilityStatus,
+        updated_at: new Date(),
+      });
+
+      // Invalidate cache
+      await this.invalidateCache(productId);
+    } catch (error) {
+      logger.error('Error updating availability status', error, { productId, availabilityStatus });
+      throw error;
+    }
+  }
+
+  /**
+   * Update product stock quantity
+   * @param {number} productId Product ID
+   * @param {number} stockQuantity New stock quantity
+   * @returns {Promise<void>}
+   */
+  async updateStockQuantity(productId, stockQuantity) {
+    try {
+      await table('products').where('id', productId).update({
+        stock_quantity: stockQuantity,
+        updated_at: new Date(),
+      });
+
+      // Invalidate cache
+      await this.invalidateCache(productId);
+    } catch (error) {
+      logger.error('Error updating stock quantity', error, { productId, stockQuantity });
+      throw error;
+    }
+  }
 }
 
 module.exports = new ProductRepository();

@@ -10,6 +10,7 @@ const orderService = require('./order-service');
 const productService = require('../product/product-service');
 const stockRepository = require('../product/stock-repository');
 const checkoutSession = require('./checkout-session');
+const { isStoreOpen, getStoreClosedMessage } = require('../shared/store-config');
 const { NotFoundError, ConflictError } = require('../shared/errors');
 const i18n = require('../shared/i18n');
 const logger = require('../shared/logger').child('checkout-handler');
@@ -31,6 +32,12 @@ class CheckoutHandler {
    */
   async startCheckout(userId, productId, quantity = 1) {
     try {
+      // Store status check (T103) - Block purchase when store closed
+      const storeOpen = await isStoreOpen();
+      if (!storeOpen) {
+        throw new ConflictError(getStoreClosedMessage());
+      }
+
       // Validate product exists and is available
       const product = await productService.getProductById(productId);
       if (!product) {
