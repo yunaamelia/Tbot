@@ -1,0 +1,158 @@
+openapi: 3.0.0
+info:
+  title: Telegram Bot Webhook API
+  description: Webhook endpoint for receiving Telegram Bot API updates
+  version: 1.0.0
+
+servers:
+  - url: https://api.telegram.org/bot{botToken}
+    description: Telegram Bot API server
+  - url: https://your-domain.com/webhook
+    description: Your webhook endpoint
+
+paths:
+  /webhook:
+    post:
+      summary: Receive Telegram Bot API updates
+      description: Webhook endpoint that receives updates from Telegram when users interact with the bot
+      operationId: receiveTelegramUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Update'
+      responses:
+        '200':
+          description: Update processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+components:
+  schemas:
+    Update:
+      type: object
+      description: Telegram Bot API Update object
+      properties:
+        update_id:
+          type: integer
+        message:
+          $ref: '#/components/schemas/Message'
+        callback_query:
+          $ref: '#/components/schemas/CallbackQuery'
+        edited_message:
+          $ref: '#/components/schemas/Message'
+    
+    Message:
+      type: object
+      properties:
+        message_id:
+          type: integer
+        from:
+          $ref: '#/components/schemas/User'
+        chat:
+          $ref: '#/components/schemas/Chat'
+        text:
+          type: string
+        photo:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhotoSize'
+        document:
+          $ref: '#/components/schemas/Document'
+        reply_markup:
+          $ref: '#/components/schemas/InlineKeyboardMarkup'
+    
+    CallbackQuery:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          $ref: '#/components/schemas/User'
+        message:
+          $ref: '#/components/schemas/Message'
+        data:
+          type: string
+          description: Callback data from inline keyboard buttons
+    
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Telegram user ID
+        is_bot:
+          type: boolean
+        first_name:
+          type: string
+        last_name:
+          type: string
+        username:
+          type: string
+        language_code:
+          type: string
+    
+    Chat:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [private, group, supergroup, channel]
+        first_name:
+          type: string
+        username:
+          type: string
+    
+    PhotoSize:
+      type: object
+      properties:
+        file_id:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        file_size:
+          type: integer
+    
+    Document:
+      type: object
+      properties:
+        file_id:
+          type: string
+        file_name:
+          type: string
+        mime_type:
+          type: string
+        file_size:
+          type: integer
+    
+    InlineKeyboardMarkup:
+      type: object
+      properties:
+        inline_keyboard:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/InlineKeyboardButton'
+    
+    InlineKeyboardButton:
+      type: object
+      properties:
+        text:
+          type: string
+        callback_data:
+          type: string
+        url:
+          type: string
+
