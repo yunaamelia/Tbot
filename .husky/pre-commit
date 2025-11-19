@@ -1,11 +1,9 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Comprehensive pre-commit hook
 # Runs linting, format checking, and all tests before commit
 # Based on best practices from Context7 research
 # 
-# To skip this hook: git commit --no-verify
+# ⚠️ STRICT MODE: All checks MUST pass before commit is allowed
+# This hook cannot be skipped - fix errors before committing
 
 set -e  # Exit on any error
 

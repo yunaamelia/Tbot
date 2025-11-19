@@ -148,4 +148,3 @@ exports.down = function (knex) {
     .dropTableIfExists('customers')
     .dropTableIfExists('products');
 };
-

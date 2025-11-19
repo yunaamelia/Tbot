@@ -9,18 +9,21 @@ This project uses [Husky](https://typicode.github.io/husky/) to run comprehensiv
 The pre-commit hook automatically runs the following checks in order:
 
 ### 1. ESLint (Code Linting)
+
 - **Command**: `npm run lint`
 - **Purpose**: Checks code for linting errors and style issues
 - **Auto-fix**: Run `npm run lint:fix` to automatically fix some issues
 - **Exit Code**: Fails commit if linting errors found
 
 ### 2. Prettier (Code Formatting Check)
+
 - **Command**: `npm run format:check`
 - **Purpose**: Verifies code formatting matches project standards
 - **Auto-fix**: Run `npm run format` to automatically format code
 - **Exit Code**: Fails commit if formatting issues found
 
 ### 3. Comprehensive Tests
+
 - **Command**: `npm run test:all`
 - **Includes**:
   - Unit tests (`npm run test:unit`)
@@ -36,7 +39,7 @@ Based on best practices research:
 1. **Comprehensive Coverage**: All test types run to catch issues early
 2. **Fast Feedback**: Checks run in sequence, failing fast on first error
 3. **Clear Error Messages**: Each step provides helpful error messages and tips
-4. **Skip Option**: Can be bypassed with `--no-verify` for emergency commits (not recommended)
+4. **Strict Enforcement**: All checks MUST pass - commits are blocked until all tests pass
 
 ## Usage
 
@@ -46,14 +49,6 @@ Based on best practices research:
 git add .
 git commit -m "Your commit message"
 # Pre-commit hooks run automatically
-```
-
-### Skip Pre-commit Hooks
-
-**⚠️ Not Recommended** - Only use in emergencies:
-
-```bash
-git commit --no-verify -m "Emergency commit"
 ```
 
 ### Test Pre-commit Hook Without Committing
@@ -77,6 +72,7 @@ To test the hook without creating a commit:
 ### Tests Taking Too Long
 
 If tests are too slow for frequent commits, consider:
+
 - Running only unit tests in pre-commit
 - Using `lint-staged` to only test changed files
 - Running integration tests in CI/CD instead
@@ -84,9 +80,10 @@ If tests are too slow for frequent commits, consider:
 ### False Positives
 
 If a test fails but you believe it's a false positive:
-1. Investigate the failure
-2. Fix the test or code
-3. Only use `--no-verify` as last resort
+
+1. Investigate the failure thoroughly
+2. Fix the test or code - all tests MUST pass before commit
+3. Review test logic and ensure it correctly reflects requirements
 
 ## Configuration
 
@@ -103,11 +100,13 @@ npm run custom-check
 ### Add Additional Hooks
 
 Create other hooks in `.husky/`:
+
 - `pre-push` - Run before push
 - `commit-msg` - Validate commit message format
 - `post-commit` - Run after commit
 
 Example:
+
 ```bash
 echo "npm run test:integration" > .husky/pre-push
 chmod +x .husky/pre-push
@@ -116,8 +115,8 @@ chmod +x .husky/pre-push
 ## Integration with CI/CD
 
 Pre-commit hooks complement but don't replace CI/CD:
+
 - **Pre-commit**: Fast feedback, prevents bad commits
 - **CI/CD**: Comprehensive testing, deployment validation
 
 Both should run the same checks for consistency.
-

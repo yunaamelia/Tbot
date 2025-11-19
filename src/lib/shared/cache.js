@@ -124,4 +124,3 @@ module.exports = {
   clear,
   remember,
 };
-

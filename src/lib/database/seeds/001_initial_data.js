@@ -74,4 +74,3 @@ exports.seed = async function (knex) {
 
   logger.info('Inserted initial store configuration');
 };
-

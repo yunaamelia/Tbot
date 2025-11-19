@@ -1,7 +1,7 @@
 /**
  * Product card formatter for card-style display
  * Provides intuitive interface with clear, discoverable options (FR-046, Article XIII)
- * 
+ *
  * Task: T032
  * Requirement: FR-001, FR-046, FR-047
  */
@@ -97,4 +97,3 @@ class ProductCardFormatter {
 }
 
 module.exports = new ProductCardFormatter();
-

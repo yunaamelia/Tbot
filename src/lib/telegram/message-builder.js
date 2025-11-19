@@ -57,11 +57,13 @@ function createNavigationButtons({ currentIndex, totalItems, prevCallback, nextC
  * @returns {Array<Array<Object>>} Button rows
  */
 function createActionButtons(actions) {
-  return [actions.map((action) => ({
-    text: action.text,
-    callbackData: action.callbackData,
-    url: action.url,
-  }))];
+  return [
+    actions.map((action) => ({
+      text: action.text,
+      callbackData: action.callbackData,
+      url: action.url,
+    })),
+  ];
 }
 
 /**
@@ -129,4 +131,3 @@ module.exports = {
   createMediaGroup,
   formatProductCard,
 };
-

@@ -49,11 +49,14 @@ class Logger {
     const logEntry = this._formatMessage(level, message, meta);
 
     // In production, use structured JSON logging
+    // eslint-disable-next-line no-console
     if (config.get('NODE_ENV') === 'production') {
+      // eslint-disable-next-line no-console
       console.log(JSON.stringify(logEntry));
     } else {
       // In development, use readable format
       const prefix = `[${logEntry.timestamp}] ${logEntry.level} ${logEntry.context}`;
+      // eslint-disable-next-line no-console
       console.log(prefix, message, Object.keys(meta).length > 0 ? meta : '');
     }
   }
@@ -102,4 +105,3 @@ const defaultLogger = new Logger();
 
 module.exports = defaultLogger;
 module.exports.Logger = Logger;
-

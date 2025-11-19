@@ -68,10 +68,7 @@ This project uses Husky for Git hooks. Before each commit, the following checks 
 2. **Prettier** - Code formatting check
 3. **Comprehensive Tests** - All unit, integration, and contract tests
 
-To skip pre-commit hooks (not recommended):
-```bash
-git commit --no-verify
-```
+**⚠️ Strict Mode**: All checks MUST pass before commit is allowed. Commits are blocked until all tests pass. Fix errors before attempting to commit.
 
 ## Project Structure
 

@@ -47,12 +47,10 @@ async function setStoreStatus(status) {
       .first();
 
     if (existing) {
-      await table('store_config')
-        .where('key', STORE_STATUS_KEY)
-        .update({
-          value: status,
-          updated_at: new Date(),
-        });
+      await table('store_config').where('key', STORE_STATUS_KEY).update({
+        value: status,
+        updated_at: new Date(),
+      });
     } else {
       await table('store_config').insert({
         key: STORE_STATUS_KEY,
@@ -91,4 +89,3 @@ module.exports = {
   isStoreOpen,
   getStoreClosedMessage,
 };
-

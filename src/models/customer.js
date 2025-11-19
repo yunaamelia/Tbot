@@ -1,7 +1,7 @@
 /**
  * Customer model
  * Represents a user who interacts with the bot
- * 
+ *
  * Task: T029
  * Requirement: FR-018 (personalization)
  */
@@ -125,4 +125,3 @@ class Customer {
 }
 
 module.exports = Customer;
-

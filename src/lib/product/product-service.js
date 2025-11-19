@@ -1,7 +1,7 @@
 /**
  * Product service with business logic
  * Uses async operations to keep bot non-blocking (FR-041, Article XI)
- * 
+ *
  * Task: T031
  * Requirement: FR-001, FR-002, FR-041
  */
@@ -120,4 +120,3 @@ class ProductService {
 }
 
 module.exports = new ProductService();
-

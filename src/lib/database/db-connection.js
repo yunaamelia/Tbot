@@ -5,7 +5,8 @@
  */
 
 const knex = require('knex');
-const config = require('../../shared/config');
+const config = require('../shared/config');
+const logger = require('../shared/logger').child('db-connection');
 
 let dbInstance = null;
 
@@ -37,7 +38,7 @@ function getDb() {
 
     // Handle connection errors
     dbInstance.on('error', (err) => {
-      console.error('Database connection error:', err);
+      logger.error('Database connection error:', err);
     });
   }
 
@@ -65,7 +66,7 @@ async function testConnection() {
     await db.raw('SELECT 1');
     return true;
   } catch (error) {
-    console.error('Database connection test failed:', error);
+    logger.error('Database connection test failed:', error);
     return false;
   }
 }
@@ -75,4 +76,3 @@ module.exports = {
   closeDb,
   testConnection,
 };
-

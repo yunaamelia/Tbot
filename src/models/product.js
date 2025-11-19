@@ -1,7 +1,7 @@
 /**
  * Product model
  * Represents a premium account product for sale
- * 
+ *
  * Task: T028
  * Requirement: FR-001, FR-002
  */
@@ -99,7 +99,8 @@ class Product {
       stock_quantity: row.stock_quantity,
       category: row.category,
       features: typeof row.features === 'string' ? JSON.parse(row.features) : row.features,
-      media_files: typeof row.media_files === 'string' ? JSON.parse(row.media_files) : row.media_files,
+      media_files:
+        typeof row.media_files === 'string' ? JSON.parse(row.media_files) : row.media_files,
       availability_status: row.availability_status,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -108,4 +109,3 @@ class Product {
 }
 
 module.exports = Product;
-

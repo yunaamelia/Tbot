@@ -1,13 +1,13 @@
 /**
  * Product repository with database queries and caching
  * Uses caching layer for product catalog (FR-040, Article XI)
- * 
+ *
  * Task: T030
  * Requirement: FR-001, FR-040
  */
 
 const { table } = require('../database/query-builder');
-const { remember, get, set, del } = require('../shared/cache');
+const { remember, del } = require('../shared/cache');
 const Product = require('../../models/product');
 const logger = require('../shared/logger').child('product-repository');
 
@@ -23,14 +23,18 @@ class ProductRepository {
    */
   async findAll() {
     try {
-      return await remember(CACHE_KEY_ALL, async () => {
-        const rows = await table('products')
-          .select()
-          .where('availability_status', '!=', 'discontinued')
-          .orderBy('created_at', 'desc');
+      return await remember(
+        CACHE_KEY_ALL,
+        async () => {
+          const rows = await table('products')
+            .select()
+            .where('availability_status', '!=', 'discontinued')
+            .orderBy('created_at', 'desc');
 
-        return rows.map((row) => Product.fromDatabase(row));
-      }, CACHE_TTL);
+          return rows.map((row) => Product.fromDatabase(row));
+        },
+        CACHE_TTL
+      );
     } catch (error) {
       logger.error('Error finding all products', error);
       throw error;
@@ -44,10 +48,14 @@ class ProductRepository {
    */
   async findById(id) {
     try {
-      return await remember(CACHE_KEY_BY_ID(id), async () => {
-        const row = await table('products').select().where('id', id).first();
-        return Product.fromDatabase(row);
-      }, CACHE_TTL);
+      return await remember(
+        CACHE_KEY_BY_ID(id),
+        async () => {
+          const row = await table('products').select().where('id', id).first();
+          return Product.fromDatabase(row);
+        },
+        CACHE_TTL
+      );
     } catch (error) {
       logger.error('Error finding product by ID', error, { productId: id });
       throw error;
@@ -61,15 +69,19 @@ class ProductRepository {
    */
   async findByCategory(category) {
     try {
-      return await remember(CACHE_KEY_BY_CATEGORY(category), async () => {
-        const rows = await table('products')
-          .select()
-          .where('category', category)
-          .where('availability_status', '!=', 'discontinued')
-          .orderBy('created_at', 'desc');
+      return await remember(
+        CACHE_KEY_BY_CATEGORY(category),
+        async () => {
+          const rows = await table('products')
+            .select()
+            .where('category', category)
+            .where('availability_status', '!=', 'discontinued')
+            .orderBy('created_at', 'desc');
 
-        return rows.map((row) => Product.fromDatabase(row));
-      }, CACHE_TTL);
+          return rows.map((row) => Product.fromDatabase(row));
+        },
+        CACHE_TTL
+      );
     } catch (error) {
       logger.error('Error finding products by category', error, { category });
       throw error;
@@ -139,4 +151,3 @@ class ProductRepository {
 }
 
 module.exports = new ProductRepository();
-

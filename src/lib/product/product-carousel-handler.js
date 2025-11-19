@@ -1,7 +1,7 @@
 /**
  * Product carousel handler for inline keyboard navigation
  * Handles next/previous navigation through product catalog
- * 
+ *
  * Task: T033
  * Requirement: FR-002
  */
@@ -115,4 +115,3 @@ class ProductCarouselHandler {
 }
 
 module.exports = new ProductCarouselHandler();
-

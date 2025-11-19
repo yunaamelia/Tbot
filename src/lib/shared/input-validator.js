@@ -3,7 +3,6 @@
  * Validates and sanitizes all external input (user messages, webhook callbacks, admin commands)
  */
 
-const logger = require('./logger').child('validator');
 const { ValidationError } = require('./errors');
 
 /**
@@ -163,4 +162,3 @@ module.exports = {
   validateWebhookPayload,
   sanitizeMessageText,
 };
-

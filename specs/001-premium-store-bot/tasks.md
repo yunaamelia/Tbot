@@ -25,7 +25,7 @@
 **Purpose**: Project initialization and basic structure
 
 - [X] T001 Create project structure per implementation plan (src/lib/, src/models/, tests/, migrations/, scripts/)
-- [X] T002 Initialize Node.js project with package.json and dependencies (telegraf, knex, pg, mysql2, ioredis, express, @duitku/duitku-nodejs, jest)
+- [X] T002 Initialize Node.js project with package.json and dependencies (telegraf, knex, pg, mysql2, ioredis, express, duitku, jest)
 - [X] T003 [P] Configure ESLint and Prettier in .eslintrc.js and .prettierrc
 - [X] T004 [P] Create .env.example template with all required environment variables
 - [X] T005 [P] Setup .gitignore for Node.js project (node_modules, .env, logs, etc.)

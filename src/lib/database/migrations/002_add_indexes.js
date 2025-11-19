@@ -98,4 +98,3 @@ exports.down = function (knex) {
       table.dropIndex('idx_products_category');
     });
 };
-

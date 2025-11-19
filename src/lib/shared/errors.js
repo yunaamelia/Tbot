@@ -70,7 +70,7 @@ class PaymentGatewayError extends AppError {
 /**
  * Error handler middleware for Express
  */
-function errorHandler(err, req, res, next) {
+function errorHandler(err, req, res, _next) {
   // Log error with structured logging
   logger.error('Error occurred', err, {
     path: req.path,
@@ -116,4 +116,3 @@ module.exports = {
   errorHandler,
   asyncHandler,
 };
-

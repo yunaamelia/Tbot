@@ -44,7 +44,7 @@ function verifyWebhookSecret(req) {
  * @param {Object} res Express response
  * @param {Function} next Next middleware
  */
-async function webhookMiddleware(req, res, next) {
+async function webhookMiddleware(req, res, _next) {
   try {
     // Verify webhook secret
     if (!verifyWebhookSecret(req)) {
@@ -71,4 +71,3 @@ module.exports = {
   verifyWebhookSecret,
   webhookMiddleware,
 };
-

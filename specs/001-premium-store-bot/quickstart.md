@@ -27,7 +27,7 @@ npm install
 - `pg` / `mysql2` - Database drivers
 - `ioredis` - Redis client
 - `express` - Webhook server
-- `@duitku/duitku-nodejs` - Duitku payment gateway SDK
+- `duitku` - Duitku payment gateway SDK
 - `jest` - Testing framework
 
 ### 2. Database Setup

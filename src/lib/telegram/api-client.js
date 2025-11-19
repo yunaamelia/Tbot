@@ -58,4 +58,3 @@ module.exports = {
   getApiClient,
   stopBot,
 };
-
