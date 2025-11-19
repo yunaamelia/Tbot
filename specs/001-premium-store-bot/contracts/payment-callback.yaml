@@ -1,0 +1,116 @@
+openapi: 3.0.0
+info:
+  title: Payment Gateway Callback API
+  description: Webhook endpoints for payment gateway callbacks (QRIS verification, payment status updates)
+  version: 1.0.0
+
+servers:
+  - url: https://your-domain.com/api/payment
+    description: Payment callback endpoints
+
+paths:
+  /callback/qris:
+    post:
+      summary: QRIS Payment Callback
+      description: Receives payment verification callbacks from Duitku QRIS gateway when payment is completed
+      operationId: receiveQRISCallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QRISCallback'
+      responses:
+        '200':
+          description: Callback processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: 'success'
+                  message:
+                    type: string
+                    example: 'Payment verified'
+        '400':
+          description: Invalid callback data
+        '404':
+          description: Order not found
+        '500':
+          description: Internal server error
+
+  /callback/status:
+    get:
+      summary: Check Payment Status
+      description: Polling endpoint to check payment status (fallback if webhook fails)
+      operationId: checkPaymentStatus
+      parameters:
+        - name: transaction_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Payment gateway transaction ID
+      responses:
+        '200':
+          description: Payment status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatus'
+        '404':
+          description: Transaction not found
+
+components:
+  schemas:
+    QRISCallback:
+      type: object
+      required:
+        - transactionId
+        - orderId
+        - status
+        - amount
+      properties:
+        transactionId:
+          type: string
+          description: Duitku transaction ID
+        orderId:
+          type: string
+          description: Our internal order ID
+        status:
+          type: string
+          enum: [paid, pending, expired, failed]
+          description: Payment status from gateway
+        amount:
+          type: number
+          format: float
+          description: Payment amount
+        paymentMethod:
+          type: string
+          description: Payment method used
+        paymentDate:
+          type: string
+          format: date-time
+          description: Payment completion timestamp
+        signature:
+          type: string
+          description: HMAC signature for verification
+    
+    PaymentStatus:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [paid, pending, expired, failed]
+        amount:
+          type: number
+        paymentDate:
+          type: string
+          format: date-time
+
