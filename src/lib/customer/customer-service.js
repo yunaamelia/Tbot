@@ -89,6 +89,34 @@ class CustomerService {
       throw error;
     }
   }
+
+  /**
+   * Add order to customer purchase history for personalization (T144)
+   * @param {number} customerId Customer ID
+   * @param {number} orderId Order ID to add
+   * @returns {Promise<void>}
+   */
+  async addOrderToPurchaseHistory(customerId, orderId) {
+    try {
+      const customer = await this.getCustomerById(customerId);
+      const purchaseHistory = customer.purchase_history || [];
+
+      // Add order ID if not already present
+      if (!purchaseHistory.includes(orderId)) {
+        purchaseHistory.push(orderId);
+        await table('customers').where('id', customerId).update({
+          purchase_history: purchaseHistory,
+        });
+        logger.debug('Order added to purchase history', { customerId, orderId });
+      }
+    } catch (error) {
+      logger.error('Error adding order to purchase history', error, {
+        customerId,
+        orderId,
+      });
+      // Don't throw - this is a non-critical operation
+    }
+  }
 }
 
 module.exports = new CustomerService();

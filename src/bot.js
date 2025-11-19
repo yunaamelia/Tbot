@@ -19,6 +19,10 @@ const paymentService = require('./lib/payment/payment-service');
 const adminCommands = require('./lib/admin/admin-commands');
 const accessControl = require('./lib/security/access-control');
 const orderService = require('./lib/order/order-service');
+const faqHandler = require('./lib/customer-service/faq-handler');
+const chatHandler = require('./lib/customer-service/chat-handler');
+const customerServiceRouter = require('./lib/customer-service/customer-service-router');
+const personalizationEngine = require('./lib/customer-service/personalization-engine');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -77,15 +81,26 @@ bot.command(
 /**
  * /start command handler
  * Shows first product card or empty catalog message
+ * Includes personalized greeting (T143)
  */
 bot.command(
   'start',
   asyncHandler(async (ctx) => {
     try {
+      // Get or create customer and update activity
+      const userId = ctx.from.id;
+      await customerService.getOrCreateCustomer(userId, {
+        name: ctx.from.first_name || ctx.from.username,
+        username: ctx.from.username,
+      });
+
+      // Get personalized greeting (T143)
+      const greeting = await personalizationEngine.getPersonalizedGreeting(userId);
+
       // Check if store is open
       const storeOpen = await isStoreOpen();
       if (!storeOpen) {
-        await ctx.reply(getStoreClosedMessage());
+        await ctx.reply(`${greeting}\n\n${getStoreClosedMessage()}`);
         return;
       }
 
@@ -93,18 +108,59 @@ bot.command(
       const isEmpty = await productService.isCatalogEmpty();
       if (isEmpty) {
         const emptyMessage = productCardFormatter.formatEmptyCatalog();
-        await ctx.reply(emptyMessage.text, { parse_mode: emptyMessage.parse_mode });
+        await ctx.reply(`${greeting}\n\n${emptyMessage.text}`, {
+          parse_mode: emptyMessage.parse_mode,
+        });
         return;
       }
 
       // Get first product card
       const firstCard = await productCarouselHandler.getProductCard(0);
-      await ctx.reply(firstCard.text, {
+      await ctx.reply(`${greeting}\n\n${firstCard.text}`, {
         parse_mode: firstCard.parse_mode,
         reply_markup: firstCard.reply_markup,
       });
     } catch (error) {
       logger.error('Error handling /start command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
+
+/**
+ * /help command handler (T146)
+ * Shows FAQ access and customer service options
+ */
+bot.command(
+  'help',
+  asyncHandler(async (ctx) => {
+    try {
+      const userId = ctx.from.id;
+      await customerService.getOrCreateCustomer(userId, {
+        name: ctx.from.first_name || ctx.from.username,
+        username: ctx.from.username,
+      });
+
+      const helpMessage =
+        `*🆘 Bantuan & Dukungan*\n\n` +
+        `Saya di sini untuk membantu Anda! Pilih opsi di bawah ini:\n\n` +
+        `• *FAQ* - Lihat pertanyaan yang sering diajukan\n` +
+        `• *Chat dengan Admin* - Berbicara langsung dengan admin\n` +
+        `• *Buat Tiket* - Buat tiket support untuk masalah spesifik\n\n` +
+        `_Gunakan tombol di bawah untuk memulai._`;
+
+      await ctx.reply(helpMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📋 Lihat FAQ', callback_data: 'faq_list' }],
+            [{ text: '💬 Chat dengan Admin', callback_data: 'chat_start' }],
+            [{ text: '🎫 Buat Tiket Support', callback_data: 'ticket_create' }],
+          ],
+        },
+      });
+    } catch (error) {
+      logger.error('Error handling /help command', error);
       await ctx.reply(i18n.t('error_generic'));
     }
   })
@@ -147,6 +203,10 @@ bot.on(
       // Handle product details view (T042, T043)
       const productDetailsData = productDetailsHandler.parseCallbackData(callbackData);
       if (productDetailsData) {
+        const userId = ctx.from.id;
+        // Track browsing behavior for personalization (T145)
+        await personalizationEngine.updateBrowsingBehavior(userId, productDetailsData.productId);
+
         const response = await productDetailsHandler.handleProductDetails(
           productDetailsData.productId,
           productDetailsData.carouselIndex
@@ -336,6 +396,67 @@ bot.on(
         return;
       }
 
+      // Handle FAQ callbacks (T146)
+      if (callbackData.startsWith('faq_')) {
+        const faqResponse = faqHandler.handleCallback(callbackData);
+        if (faqResponse) {
+          await ctx.editMessageText(faqResponse.text, {
+            parse_mode: faqResponse.parse_mode,
+            reply_markup: faqResponse.reply_markup,
+          });
+          await ctx.answerCallbackQuery();
+          return;
+        }
+      }
+
+      // Handle chat callbacks (T140)
+      if (callbackData.startsWith('chat_')) {
+        const userId = ctx.from.id;
+        if (callbackData === 'chat_start') {
+          const chatSession = await chatHandler.startChat(userId);
+          await ctx.editMessageText(chatSession.message, { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Chat dimulai');
+          return;
+        }
+
+        if (callbackData.startsWith('chat_accept_')) {
+          const sessionId = parseInt(callbackData.replace('chat_accept_', ''), 10);
+          const adminId = ctx.from.id;
+          await chatHandler.acceptChat(sessionId, adminId);
+          await ctx.editMessageText('✅ Chat session telah diterima.', { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Chat diterima');
+          return;
+        }
+
+        if (callbackData.startsWith('chat_reject_')) {
+          const sessionId = parseInt(callbackData.replace('chat_reject_', ''), 10);
+          await chatHandler.closeChat(sessionId, ctx.from.id);
+          await ctx.editMessageText('❌ Chat session ditolak.', { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Chat ditolak');
+          return;
+        }
+
+        if (callbackData.startsWith('chat_close_')) {
+          const sessionId = parseInt(callbackData.replace('chat_close_', ''), 10);
+          await chatHandler.closeChat(sessionId, ctx.from.id);
+          await ctx.editMessageText('✅ Chat session ditutup.', { parse_mode: 'Markdown' });
+          await ctx.answerCallbackQuery('Chat ditutup');
+          return;
+        }
+      }
+
+      // Handle ticket callbacks (T141)
+      if (callbackData.startsWith('ticket_')) {
+        if (callbackData === 'ticket_create') {
+          await ctx.editMessageText(
+            'Silakan kirim pesan yang menjelaskan masalah Anda, dan saya akan membuat tiket support untuk Anda.',
+            { parse_mode: 'Markdown' }
+          );
+          await ctx.answerCallbackQuery('Kirim pesan untuk membuat tiket');
+          return;
+        }
+      }
+
       // Handle admin payment verification (T118, T119)
       if (callbackData.startsWith('admin_payment_verify_')) {
         const adminId = ctx.from.id;
@@ -437,6 +558,59 @@ bot.on(
     } catch (error) {
       logger.error('Error handling callback query', error);
       await ctx.answerCallbackQuery(i18n.t('error_generic'));
+    }
+  })
+);
+
+/**
+ * Text message handler for customer service routing (T147)
+ * Routes messages to FAQ, chat, or ticket service based on content
+ */
+bot.on(
+  'text',
+  asyncHandler(async (ctx) => {
+    try {
+      // Skip if message is a command
+      if (ctx.message.text.startsWith('/')) {
+        return;
+      }
+
+      const userId = ctx.from.id;
+      const messageText = ctx.message.text;
+
+      // Check if message should be routed to customer service
+      if (customerServiceRouter.shouldRouteToCustomerService(messageText)) {
+        const routing = await customerServiceRouter.routeQuery(userId, messageText);
+        if (routing.response) {
+          await ctx.reply(routing.message || '', {
+            parse_mode: routing.response.parse_mode,
+            reply_markup: routing.response.reply_markup,
+          });
+        } else {
+          await ctx.reply(routing.message || 'Terima kasih. Admin akan merespons segera.');
+        }
+        return;
+      }
+
+      // Check if customer has active chat session
+      const activeSession = await chatHandler.getActiveSession(userId);
+      if (activeSession && activeSession.status === 'active') {
+        // Forward message to admin
+        await chatHandler.sendCustomerMessage(activeSession.id, messageText);
+        await ctx.reply('✅ Pesan Anda telah dikirim ke admin.');
+        return;
+      }
+
+      // Track browsing behavior for personalization (T145)
+      // This is a simple heuristic - in production, you'd track product views more explicitly
+      // For now, we'll just update last activity
+      await customerService.getOrCreateCustomer(userId, {
+        name: ctx.from.first_name || ctx.from.username,
+        username: ctx.from.username,
+      });
+    } catch (error) {
+      logger.error('Error handling text message', error);
+      // Don't reply to avoid spam - let other handlers process
     }
   })
 );

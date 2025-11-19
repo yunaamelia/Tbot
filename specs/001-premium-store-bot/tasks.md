@@ -287,15 +287,15 @@
 
 **Purpose**: Implement FAQ system, live chat, and personalization features
 
-- [ ] T139 [P] Implement FAQ handler in src/lib/customer-service/faq-handler.js with common questions in Indonesian
-- [ ] T140 [P] Implement chat handler in src/lib/customer-service/chat-handler.js for live admin chat
-- [ ] T141 [P] Implement ticket service in src/lib/customer-service/ticket-service.js for support tickets
-- [ ] T142 Implement personalization engine in src/lib/customer-service/personalization-engine.js
-- [ ] T143 Add customer name personalization: Use customer name in messages
-- [ ] T144 Add purchase history-based recommendations: Suggest products based on past purchases
-- [ ] T145 Add behavior-based recommendations: Suggest products based on browsing patterns
-- [ ] T146 Implement /help command with FAQ access
-- [ ] T147 Implement customer service routing: Route to FAQ or live admin based on query type
+- [X] T139 [P] Implement FAQ handler in src/lib/customer-service/faq-handler.js with common questions in Indonesian
+- [X] T140 [P] Implement chat handler in src/lib/customer-service/chat-handler.js for live admin chat
+- [X] T141 [P] Implement ticket service in src/lib/customer-service/ticket-service.js for support tickets
+- [X] T142 Implement personalization engine in src/lib/customer-service/personalization-engine.js
+- [X] T143 Add customer name personalization: Use customer name in messages
+- [X] T144 Add purchase history-based recommendations: Suggest products based on past purchases
+- [X] T145 Add behavior-based recommendations: Suggest products based on browsing patterns
+- [X] T146 Implement /help command with FAQ access
+- [X] T147 Implement customer service routing: Route to FAQ or live admin based on query type
 
 ---
 

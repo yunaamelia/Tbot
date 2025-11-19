@@ -56,6 +56,23 @@ class OrderService {
           totalAmount,
         });
 
+        // Update customer purchase history for personalization (T144)
+        const customerService = require('../customer/customer-service');
+        const personalizationEngine = require('../customer-service/personalization-engine');
+        customerService
+          .addOrderToPurchaseHistory(customerId, createdOrder.id)
+          .then(async () => {
+            // Update purchase frequency
+            const customer = await customerService.getCustomerById(customerId);
+            return personalizationEngine.updatePurchaseFrequency(customer.telegram_user_id);
+          })
+          .catch((error) => {
+            logger.error('Error updating purchase history for personalization', error, {
+              customerId,
+              orderId: createdOrder.id,
+            });
+          });
+
         // Send admin notification for new order (T115)
         // Don't await - send asynchronously to not block order creation
         adminNotificationDispatcher
