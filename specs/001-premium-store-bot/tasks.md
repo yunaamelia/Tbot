@@ -267,19 +267,19 @@
 
 **Purpose**: Implement security-first approach for premium account delivery (FR-019 through FR-022, FR-031, FR-032, FR-043, FR-044, FR-045)
 
-- [ ] T126 [P] Implement encryption service in src/lib/security/encryption-service.js using Node.js crypto (AES-256)
-- [ ] T127 [P] Implement credential delivery service in src/lib/security/credential-delivery.js with secure channel
-- [ ] T128 [P] Implement audit logger in src/lib/security/audit-logger.js for credential access logging
-- [ ] T129 Implement credential encryption before storage in orders.account_credentials field
-- [ ] T130 Implement secure credential delivery to customers via encrypted Telegram message
-- [ ] T131 Add audit log entry when credentials accessed or delivered
-- [ ] T132 Implement access control checks before credential delivery
-- [ ] T133 Add credential delivery validation: Verify order status and payment before delivery
-- [ ] T134 [P] Implement HMAC signature verification for payment gateway webhooks in src/lib/payment/webhook-verifier.js (FR-031)
-- [ ] T135 [P] Implement admin authentication using Telegram user ID whitelist validation in src/lib/security/access-control.js (FR-032)
-- [ ] T136 [P] Integrate input validation and sanitization in all webhook handlers and command processors using input-validator.js (FR-043, Article XII)
-- [ ] T137 [P] Implement credential protection: Ensure no credentials, API keys, or secrets are written to logs, error messages, or telemetry (FR-044, Article XII)
-- [ ] T138 [P] Verify and enforce HTTPS/TLS for all external service communications (Telegram API, payment gateways, databases) (FR-045, Article XII)
+- [X] T126 [P] Implement encryption service in src/lib/security/encryption-service.js using Node.js crypto (AES-256)
+- [X] T127 [P] Implement credential delivery service in src/lib/security/credential-delivery.js with secure channel
+- [X] T128 [P] Implement audit logger in src/lib/security/audit-logger.js for credential access logging
+- [X] T129 Implement credential encryption before storage in orders.account_credentials field
+- [X] T130 Implement secure credential delivery to customers via encrypted Telegram message
+- [X] T131 Add audit log entry when credentials accessed or delivered
+- [X] T132 Implement access control checks before credential delivery
+- [X] T133 Add credential delivery validation: Verify order status and payment before delivery
+- [X] T134 [P] Implement HMAC signature verification for payment gateway webhooks in src/lib/payment/webhook-verifier.js (FR-031)
+- [X] T135 [P] Implement admin authentication using Telegram user ID whitelist validation in src/lib/security/access-control.js (FR-032)
+- [X] T136 [P] Integrate input validation and sanitization in all webhook handlers and command processors using input-validator.js (FR-043, Article XII)
+- [X] T137 [P] Implement credential protection: Ensure no credentials, API keys, or secrets are written to logs, error messages, or telemetry (FR-044, Article XII)
+- [X] T138 [P] Verify and enforce HTTPS/TLS for all external service communications (Telegram API, payment gateways, databases) (FR-045, Article XII)
 
 ---
 

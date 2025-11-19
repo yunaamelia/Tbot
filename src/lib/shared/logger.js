@@ -34,13 +34,69 @@ class Logger {
     const levelName = LOG_LEVEL_NAMES[level];
     const context = this.context ? `[${this.context}]` : '';
 
+    // Sanitize meta to remove credentials (T137, FR-044)
+    const sanitizedMeta = this._sanitizeMeta(meta);
+
     return {
       timestamp,
       level: levelName,
       context,
       message,
-      ...meta,
+      ...sanitizedMeta,
     };
+  }
+
+  /**
+   * Sanitize metadata to remove credentials and secrets (T137, FR-044)
+   * @param {Object} meta Metadata object
+   * @returns {Object} Sanitized metadata
+   */
+  _sanitizeMeta(meta) {
+    if (!meta || typeof meta !== 'object') {
+      return meta;
+    }
+
+    const sanitized = { ...meta };
+    const sensitiveKeys = [
+      'credentials',
+      'credential',
+      'password',
+      'secret',
+      'apiKey',
+      'api_key',
+      'token',
+      'accessToken',
+      'access_token',
+      'account_credentials',
+      'encryptedCredentials',
+      'plaintext',
+    ];
+
+    for (const key of Object.keys(sanitized)) {
+      const lowerKey = key.toLowerCase();
+      if (
+        sensitiveKeys.some((sensitive) => lowerKey.includes(sensitive)) ||
+        typeof sanitized[key] === 'string' ||
+        sanitized[key] === null
+      ) {
+        // Check if value looks like credentials (contains common patterns)
+        if (
+          typeof sanitized[key] === 'string' &&
+          (sanitized[key].includes('@') ||
+            sanitized[key].includes('://') ||
+            sanitized[key].length > 20)
+        ) {
+          sanitized[key] = '[REDACTED]';
+        }
+      }
+
+      // Recursively sanitize nested objects
+      if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+        sanitized[key] = this._sanitizeMeta(sanitized[key]);
+      }
+    }
+
+    return sanitized;
   }
 
   _log(level, message, meta = {}) {

@@ -17,7 +17,14 @@ const PORT = config.getInt('SERVER_PORT', 3000);
 const HOST = config.get('SERVER_HOST', '0.0.0.0');
 
 // Middleware
-app.use(express.json());
+// Store raw body for HMAC verification (T134)
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString('utf8');
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting for webhook endpoints (FR-035)
@@ -37,31 +44,31 @@ app.post('/webhook/telegram', webhookLimiter, webhookMiddleware);
 
 // Payment callback endpoint (T062, FR-057, Article XII)
 const paymentService = require('./src/lib/payment/payment-service');
-const { NotFoundError } = require('./src/lib/shared/errors');
-const crypto = require('crypto');
+const webhookVerifier = require('./src/lib/payment/webhook-verifier');
+const { validateWebhookPayload } = require('./src/lib/shared/input-validator');
+const { NotFoundError, ValidationError } = require('./src/lib/shared/errors');
 
 app.post('/api/payment/callback/qris', webhookLimiter, async (req, res) => {
   try {
-    // HMAC signature verification (FR-031, FR-057)
-    const secret = config.get('DUITKU_API_KEY', 'test_secret');
-    const payload = req.body;
-    const signature = req.headers['x-duitku-signature'] || req.headers['x-duitku-signature'];
-
-    // Generate expected signature
-    const payloadString = JSON.stringify(payload);
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(payloadString)
-      .digest('hex');
-
-    // Verify signature
-    if (signature !== expectedSignature) {
+    // HMAC signature verification (T134, FR-031, FR-057)
+    if (!webhookVerifier.verifyDuitkuWebhook(req)) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // Validate required fields
-    if (!payload.transactionId || !payload.orderId || !payload.status || !payload.amount) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Input validation and sanitization (T136, FR-043)
+    let payload;
+    try {
+      payload = validateWebhookPayload(req.body, [
+        'transactionId',
+        'orderId',
+        'status',
+        'amount',
+      ]);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
     }
 
     // Verify payment if status is 'paid'

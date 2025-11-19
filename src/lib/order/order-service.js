@@ -255,14 +255,21 @@ class OrderService {
   }
 
   /**
-   * Update order with account credentials (encrypted)
+   * Update order with account credentials (encrypted) (T129)
    * Triggers account_delivered notification (T086)
    * @param {number} orderId Order ID
-   * @param {string} encryptedCredentials Encrypted credentials
+   * @param {string} credentials Plaintext or encrypted credentials
+   * @param {boolean} isEncrypted Whether credentials are already encrypted
    * @returns {Promise<Order>}
    */
-  async updateCredentials(orderId, encryptedCredentials) {
+  async updateCredentials(orderId, credentials, isEncrypted = false) {
     try {
+      // Encrypt credentials before storage if not already encrypted (T129)
+      const encryptionService = require('../security/encryption-service');
+      const encryptedCredentials = isEncrypted
+        ? credentials
+        : encryptionService.encrypt(credentials);
+
       const order = await orderRepository.updateCredentials(orderId, encryptedCredentials);
 
       // Update status to account_delivered and trigger notification

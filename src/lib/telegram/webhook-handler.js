@@ -5,6 +5,7 @@
 
 const logger = require('../shared/logger').child('webhook');
 const { getBot } = require('./api-client');
+const { validateWebhookPayload } = require('../shared/input-validator');
 
 /**
  * Handle incoming webhook update
@@ -54,8 +55,8 @@ async function webhookMiddleware(req, res, _next) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Handle update
-    const update = req.body;
+    // Input validation and sanitization (T136, FR-043)
+    const update = validateWebhookPayload(req.body, ['update_id']);
     await handleUpdate(update);
 
     // Respond immediately to Telegram
