@@ -34,9 +34,52 @@ const webhookLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check endpoint (T158)
+app.get('/health', async (req, res) => {
+  try {
+    const { testConnection: testDb } = require('./src/lib/database/db-connection');
+    const { testConnection: testRedis } = require('./src/lib/shared/redis-client');
+
+    const dbHealthy = await testDb();
+    const redisHealthy = await testRedis();
+
+    const status = dbHealthy && redisHealthy ? 'healthy' : 'degraded';
+    const statusCode = status === 'healthy' ? 200 : 503;
+
+    res.status(statusCode).json({
+      status,
+      timestamp: new Date().toISOString(),
+      services: {
+        database: dbHealthy ? 'ok' : 'error',
+        redis: redisHealthy ? 'ok' : 'error',
+      },
+    });
+  } catch (error) {
+    logger.error('Health check failed', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed',
+    });
+  }
+});
+
+// Performance monitoring endpoint (T159, FR-042)
+app.get('/api/monitoring/performance', async (req, res) => {
+  try {
+    const performanceMonitor = require('./src/lib/shared/performance-monitor');
+    const summary = performanceMonitor.getSummary();
+    const recommendations = performanceMonitor.getScalabilityRecommendations();
+
+    res.json({
+      summary,
+      recommendations,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('Error getting performance metrics', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Telegram webhook endpoint
@@ -139,37 +182,75 @@ function startServer() {
       cert: fs.readFileSync(config.require('HTTPS_CERT_PATH')),
     };
 
-    https.createServer(httpsOptions, app).listen(PORT, HOST, () => {
+    server = https.createServer(httpsOptions, app).listen(PORT, HOST, () => {
       logger.info(`HTTPS server running on https://${HOST}:${PORT}`);
     });
   } else {
     // HTTP server (development only)
-    app.listen(PORT, HOST, () => {
+    server = app.listen(PORT, HOST, () => {
       logger.info(`HTTP server running on http://${HOST}:${PORT}`);
       logger.warn('Running in HTTP mode. Use HTTPS in production (FR-045, Article XII)');
     });
   }
 }
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
+// Graceful shutdown handler (T157)
+let server = null;
+let backupScheduler = null;
+let isShuttingDown = false;
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    logger.warn('Shutdown already in progress, forcing exit');
+    process.exit(1);
+  }
+
+  isShuttingDown = true;
+  logger.info(`${signal} received, shutting down gracefully...`);
+
+  try {
+    // Stop accepting new connections
+    if (server) {
+      server.close(() => {
+        logger.info('HTTP/HTTPS server closed');
+      });
+    }
+
+    // Close database connections
+    const { closeDb } = require('./src/lib/database/db-connection');
+    await closeDb();
+    logger.info('Database connections closed');
+
+    // Close Redis connections
+    const { closeRedis } = require('./src/lib/shared/redis-client');
+    await closeRedis();
+    logger.info('Redis connections closed');
+
+    // Stop backup scheduler
+    if (backupScheduler) {
+      backupScheduler.stop();
+      logger.info('Backup scheduler stopped');
+    }
+
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 if (require.main === module) {
   startServer();
 
   // Start backup scheduler (T145)
   const BackupScheduler = require('./src/lib/backup/backup-scheduler');
-  const backupScheduler = new BackupScheduler();
   const enableBackupScheduler = config.getBoolean('ENABLE_BACKUP_SCHEDULER', true);
   if (enableBackupScheduler) {
+    backupScheduler = new BackupScheduler();
     backupScheduler.start();
     logger.info('Backup scheduler enabled');
   }

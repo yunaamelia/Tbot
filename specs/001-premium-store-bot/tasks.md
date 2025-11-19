@@ -317,22 +317,22 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T150 [P] Add comprehensive error messages in Indonesian for all error scenarios (FR-034)
-- [ ] T151 [P] Implement request rate limiting for webhook endpoints using express-rate-limit (FR-035)
-- [ ] T152 [P] Add performance monitoring and logging for all critical operations
-- [ ] T153 [P] Create API documentation in docs/api.md documenting all public library interfaces and APIs, keeping in sync with implementation (FR-038, Article X)
-- [ ] T154 [P] Add unit tests for all library modules in tests/unit/lib/
-- [ ] T155 [P] Add unit tests for all models in tests/unit/models/
-- [ ] T156 Implement connection retry logic for database and Redis
-- [ ] T157 Implement graceful shutdown handling for webhook server
-- [ ] T158 Add health check endpoint for monitoring
-- [ ] T159 [P] Implement resource usage monitoring and optimization for scalability targets (1000+ concurrent interactions) (FR-042, Article XI)
-- [ ] T160 Run quickstart.md validation: Verify all test scenarios pass
+- [X] T150 [P] Add comprehensive error messages in Indonesian for all error scenarios (FR-034)
+- [X] T151 [P] Implement request rate limiting for webhook endpoints using express-rate-limit (FR-035)
+- [X] T152 [P] Add performance monitoring and logging for all critical operations
+- [X] T153 [P] Create API documentation in docs/api.md documenting all public library interfaces and APIs, keeping in sync with implementation (FR-038, Article X)
+- [X] T154 [P] Add unit tests for all library modules in tests/unit/lib/
+- [X] T155 [P] Add unit tests for all models in tests/unit/models/
+- [X] T156 Implement connection retry logic for database and Redis
+- [X] T157 Implement graceful shutdown handling for webhook server
+- [X] T158 Add health check endpoint for monitoring
+- [X] T159 [P] Implement resource usage monitoring and optimization for scalability targets (1000+ concurrent interactions) (FR-042, Article XI)
+- [X] T160 Run quickstart.md validation: Verify all test scenarios pass
 - [ ] T161 Code cleanup and refactoring: Remove unused code, optimize queries
 - [ ] T162 Security audit: Review all security implementations
 - [ ] T163 Performance optimization: Optimize database queries and Redis usage
-- [ ] T164 [P] Ensure consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (FR-047, Article XIII)
-- [ ] T165 [P] Implement UX regression detection and handling process: Treat UX regressions as defects and address before release (FR-048, Article XIII)
+- [X] T164 [P] Ensure consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (FR-047, Article XIII)
+- [X] T165 [P] Implement UX regression detection and handling process: Treat UX regressions as defects and address before release (FR-048, Article XIII)
 
 ---
 
