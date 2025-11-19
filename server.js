@@ -157,6 +157,10 @@ process.on('SIGINT', () => {
 
 if (require.main === module) {
   startServer();
+
+  // Start checkout timeout cleanup scheduler (T074)
+  const checkoutTimeout = require('./src/lib/order/checkout-timeout');
+  checkoutTimeout.startCleanupScheduler();
 }
 
 module.exports = app;

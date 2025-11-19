@@ -156,10 +156,10 @@
 - [ ] T069 [US3] Implement automatic QRIS payment verification via webhook callback
 - [X] T070 [US3] Implement stock reservation when order is created (reserve quantity) using database transactions with row-level locking (FR-033) - Implemented in order-service.js and stock-repository.js
 - [X] T071 [US3] Implement stock deduction when payment is verified (decrease current quantity, decrease reserved) - Implemented in payment-service.js and stock-repository.js
-- [ ] T072 [US3] Implement out-of-stock validation: Prevent purchase when stock is zero
-- [ ] T073 [US3] Add checkout session management using Redis for multi-step checkout state
-- [ ] T074 [US3] Implement checkout timeout handling (abandoned checkout cleanup)
-- [ ] T075 [US3] Ensure all checkout instructions are in Indonesian language
+- [X] T072 [US3] Implement out-of-stock validation: Prevent purchase when stock is zero - Implemented in checkout-handler.js startCheckout()
+- [X] T073 [US3] Add checkout session management using Redis for multi-step checkout state - Implemented in checkout-session.js
+- [X] T074 [US3] Implement checkout timeout handling (abandoned checkout cleanup) - Implemented in checkout-timeout.js
+- [X] T075 [US3] Ensure all checkout instructions are in Indonesian language - All messages in i18n.js and checkout handlers use Indonesian
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 should all work independently
 

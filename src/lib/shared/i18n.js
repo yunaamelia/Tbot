@@ -45,6 +45,23 @@ const messages = {
   error_database: 'Terjadi kesalahan pada database. Silakan hubungi admin.',
   error_payment_gateway: 'Terjadi kesalahan pada gateway pembayaran. Silakan coba lagi.',
   error_stock_conflict: 'Stok produk tidak mencukupi. Silakan pilih produk lain.',
+
+  // Checkout messages (T075)
+  checkout_started: 'Checkout dimulai. Silakan konfirmasi pesanan Anda.',
+  checkout_session_not_found: 'Sesi checkout tidak ditemukan. Silakan mulai checkout lagi.',
+  checkout_cancelled: 'Checkout dibatalkan.',
+  checkout_order_summary: '📋 *Ringkasan Pesanan*',
+  checkout_payment_method_select: '💳 *Pilih Metode Pembayaran*',
+  checkout_qris_instructions:
+    'Silakan scan QRIS berikut untuk pembayaran:\n\n{qrCodeUrl}\n\nJumlah: *Rp {amount}*\n\nPembayaran akan diverifikasi secara otomatis setelah Anda melakukan pembayaran.',
+  checkout_manual_instructions:
+    'Silakan transfer ke rekening berikut:\n\n🏦 Bank: {bankName}\n📝 Nomor Rekening: {accountNumber}\n👤 Atas Nama: {accountHolder}\n💰 Jumlah: *Rp {amount}*\n\nSetelah transfer, silakan kirim bukti transfer Anda (foto atau screenshot).',
+  checkout_payment_proof_received:
+    '✅ Bukti pembayaran telah diterima. Admin akan memverifikasi pembayaran Anda segera.',
+  checkout_payment_verified: '✅ Pembayaran Anda telah diverifikasi! Pesanan Anda sedang diproses.',
+  checkout_payment_pending: '⏳ Menunggu verifikasi pembayaran...',
+  checkout_timeout:
+    '⏰ Checkout Anda telah timeout karena tidak ada aktivitas. Silakan mulai checkout lagi.',
 };
 
 /**

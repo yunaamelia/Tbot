@@ -11,6 +11,11 @@ const productService = require('./lib/product/product-service');
 const productCardFormatter = require('./lib/product/product-card-formatter');
 const productCarouselHandler = require('./lib/product/product-carousel-handler');
 const productDetailsHandler = require('./lib/product/product-details-handler');
+const checkoutHandler = require('./lib/order/checkout-handler');
+const qrisHandler = require('./lib/payment/qris-handler');
+const manualVerificationHandler = require('./lib/payment/manual-verification');
+const customerService = require('./lib/customer/customer-service');
+const paymentService = require('./lib/payment/payment-service');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -138,8 +143,148 @@ bot.on(
         return;
       }
 
-      // Handle other callback queries (product_buy) - will be implemented in later phases
-      await ctx.answerCallbackQuery('Fitur ini akan segera tersedia');
+      // Handle checkout callbacks (T064, T065, T066)
+      if (callbackData.startsWith('product_buy_')) {
+        const productId = parseInt(callbackData.replace('product_buy_', ''), 10);
+        const userId = ctx.from.id;
+
+        // Get or create customer (for future use)
+        await customerService.getOrCreateCustomer(userId, {
+          name: ctx.from.first_name,
+          username: ctx.from.username,
+        });
+
+        // Start checkout
+        const checkoutResponse = await checkoutHandler.startCheckout(userId, productId, 1);
+
+        await ctx.editMessageText(checkoutResponse.message.text, {
+          parse_mode: checkoutResponse.message.parse_mode,
+          reply_markup: checkoutResponse.message.reply_markup,
+        });
+
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle checkout confirmation
+      if (callbackData === 'checkout_confirm') {
+        const userId = ctx.from.id;
+        // Get or create customer (for future use)
+        await customerService.getOrCreateCustomer(userId, {
+          name: ctx.from.first_name,
+          username: ctx.from.username,
+        });
+
+        // Proceed to payment method selection
+        const paymentMethodResponse = await checkoutHandler.selectPaymentMethod(userId);
+
+        await ctx.editMessageText(paymentMethodResponse.message.text, {
+          parse_mode: paymentMethodResponse.message.parse_mode,
+          reply_markup: paymentMethodResponse.message.reply_markup,
+        });
+
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle checkout cancel
+      if (callbackData === 'checkout_cancel') {
+        const userId = ctx.from.id;
+        await checkoutHandler.cancelCheckout(userId);
+        await ctx.editMessageText(i18n.t('checkout_cancelled'));
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle payment method selection
+      if (callbackData === 'checkout_payment_qris' || callbackData === 'checkout_payment_manual') {
+        const userId = ctx.from.id;
+        const customer = await customerService.getOrCreateCustomer(userId, {
+          name: ctx.from.first_name,
+          username: ctx.from.username,
+        });
+
+        const session = await checkoutHandler.getCurrentSession(userId);
+        if (!session) {
+          await ctx.answerCallbackQuery('Sesi checkout tidak ditemukan');
+          return;
+        }
+
+        // Determine payment method
+        const paymentMethod =
+          callbackData === 'checkout_payment_qris' ? 'qris' : 'manual_bank_transfer';
+
+        // Confirm checkout and create order
+        const order = await checkoutHandler.confirmCheckout(userId, customer.id, paymentMethod);
+
+        // Create payment record
+        await paymentService.createPayment(order.id, paymentMethod, order.total_amount);
+
+        // Update session with payment method
+        const checkoutSession = require('./lib/order/checkout-session');
+        await checkoutSession.updateStep(userId, 'payment_processing', {
+          paymentMethod,
+          orderId: order.id,
+        });
+
+        if (paymentMethod === 'qris') {
+          // Generate QRIS payment (T067)
+          const qrisData = await qrisHandler.generateQRIS(
+            order.id,
+            order.total_amount,
+            customer.name || 'Customer'
+          );
+
+          const qrisMessage = qrisHandler.formatQRISMessage(qrisData, order.id);
+
+          // Send QRIS code/image
+          if (qrisData.qrCodeUrl) {
+            try {
+              await ctx.replyWithPhoto(qrisData.qrCodeUrl, {
+                caption: qrisMessage.text,
+                parse_mode: qrisMessage.parse_mode,
+              });
+            } catch (error) {
+              // Fallback to text if photo fails
+              await ctx.reply(qrisMessage.text, {
+                parse_mode: qrisMessage.parse_mode,
+              });
+            }
+          } else {
+            await ctx.reply(qrisMessage.text, {
+              parse_mode: qrisMessage.parse_mode,
+            });
+          }
+        } else {
+          // Manual bank transfer (T068)
+          const manualMessage = manualVerificationHandler.formatManualTransferInstructions(
+            order.id,
+            order.total_amount
+          );
+
+          await ctx.editMessageText(manualMessage.text, {
+            parse_mode: manualMessage.parse_mode,
+          });
+        }
+
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Handle back to order summary
+      if (callbackData === 'checkout_back_summary') {
+        const userId = ctx.from.id;
+        const session = await checkoutHandler.getCurrentSession(userId);
+        if (session) {
+          const summaryMessage = checkoutHandler.formatOrderSummary(session);
+          await ctx.editMessageText(summaryMessage.text, {
+            parse_mode: summaryMessage.parse_mode,
+            reply_markup: summaryMessage.reply_markup,
+          });
+        }
+        await ctx.answerCallbackQuery();
+        return;
+      }
     } catch (error) {
       logger.error('Error handling callback query', error);
       await ctx.answerCallbackQuery(i18n.t('error_generic'));
