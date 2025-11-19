@@ -15,5 +15,14 @@ module.exports = {
     'prefer-const': 'error',
     'no-var': 'error',
   },
+  overrides: [
+    {
+      // Allow console statements in test files for debugging
+      files: ['tests/**/*.js', '**/*.test.js'],
+      rules: {
+        'no-console': 'off',
+      },
+    },
+  ],
 };
 

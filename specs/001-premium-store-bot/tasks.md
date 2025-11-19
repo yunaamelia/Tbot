@@ -328,9 +328,9 @@
 - [X] T158 Add health check endpoint for monitoring
 - [X] T159 [P] Implement resource usage monitoring and optimization for scalability targets (1000+ concurrent interactions) (FR-042, Article XI)
 - [X] T160 Run quickstart.md validation: Verify all test scenarios pass
-- [ ] T161 Code cleanup and refactoring: Remove unused code, optimize queries
-- [ ] T162 Security audit: Review all security implementations
-- [ ] T163 Performance optimization: Optimize database queries and Redis usage
+- [X] T161 Code cleanup and refactoring: Remove unused code, optimize queries
+- [X] T162 Security audit: Review all security implementations
+- [X] T163 Performance optimization: Optimize database queries and Redis usage
 - [X] T164 [P] Ensure consistent rich media UI/UX across all user interactions (browsing, checkout, notifications) (FR-047, Article XIII)
 - [X] T165 [P] Implement UX regression detection and handling process: Treat UX regressions as defects and address before release (FR-048, Article XIII)
 

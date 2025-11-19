@@ -46,7 +46,7 @@ class AdminRepository {
    */
   async findAll() {
     try {
-      const rows = await table('admins').select('*').orderBy('created_timestamp', 'asc');
+      const rows = await table('admins').orderBy('created_timestamp', 'asc');
       return rows.map(Admin.fromDatabase);
     } catch (error) {
       logger.error('Error finding all admins', error);

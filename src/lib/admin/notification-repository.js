@@ -40,7 +40,7 @@ class NotificationRepository {
    */
   async findById(id) {
     try {
-      const row = await table('notifications').select('*').where({ id }).first();
+      const row = await table('notifications').where({ id }).first();
       return Notification.fromDatabase(row);
     } catch (error) {
       logger.error('Error finding notification by ID', error, { notificationId: id });
@@ -56,7 +56,6 @@ class NotificationRepository {
   async findByOrderId(orderId) {
     try {
       const rows = await table('notifications')
-        .select('*')
         .where({ order_id: orderId })
         .orderBy('sent_timestamp', 'asc');
       return rows.map(Notification.fromDatabase);

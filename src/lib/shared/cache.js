@@ -77,17 +77,34 @@ async function del(key) {
 
 /**
  * Clear all cache entries with prefix
+ * Optimized to use SCAN instead of KEYS for better performance (T163)
+ * SCAN is non-blocking and suitable for production use
  * @returns {Promise<void>}
  */
 async function clear() {
   try {
     const redis = getRedis();
     const pattern = `${CACHE_PREFIX}*`;
-    const keys = await redis.keys(pattern);
+    const keysToDelete = [];
+    let cursor = '0';
 
-    if (keys.length > 0) {
-      await redis.del(...keys);
-      logger.info(`Cleared ${keys.length} cache entries`);
+    // Use SCAN to iterate through keys (non-blocking)
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        keysToDelete.push(...keys);
+      }
+    } while (cursor !== '0');
+
+    // Delete in batches to avoid blocking Redis
+    if (keysToDelete.length > 0) {
+      const batchSize = 100;
+      for (let i = 0; i < keysToDelete.length; i += batchSize) {
+        const batch = keysToDelete.slice(i, i + batchSize);
+        await redis.del(...batch);
+      }
+      logger.info(`Cleared ${keysToDelete.length} cache entries`);
     }
   } catch (error) {
     logger.error('Cache clear error', error);

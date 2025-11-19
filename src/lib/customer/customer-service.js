@@ -99,22 +99,26 @@ class CustomerService {
   async addOrderToPurchaseHistory(customerId, orderId) {
     try {
       const customer = await this.getCustomerById(customerId);
-      const purchaseHistory = customer.purchase_history || [];
-
-      // Add order ID if not already present
-      if (!purchaseHistory.includes(orderId)) {
-        purchaseHistory.push(orderId);
-        await table('customers').where('id', customerId).update({
-          purchase_history: purchaseHistory,
-        });
-        logger.debug('Order added to purchase history', { customerId, orderId });
+      if (!customer) {
+        throw new NotFoundError(`Customer with ID ${customerId} not found`);
       }
+
+      const purchaseHistory = new Set(customer.purchase_history || []);
+      purchaseHistory.add(orderId);
+
+      await table('customers')
+        .where('id', customerId)
+        .update({
+          purchase_history: JSON.stringify(Array.from(purchaseHistory)),
+          updated_at: new Date(),
+        });
+      logger.debug('Order added to purchase history', { customerId, orderId });
     } catch (error) {
       logger.error('Error adding order to purchase history', error, {
         customerId,
         orderId,
       });
-      // Don't throw - this is a non-critical operation
+      throw error;
     }
   }
 }
