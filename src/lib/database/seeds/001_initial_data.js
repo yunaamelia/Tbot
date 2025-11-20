@@ -3,8 +3,8 @@
  * Run after migrations: npm run migrate:seed
  */
 
-const config = require('../../../shared/config');
-const logger = require('../../../shared/logger').child('seeds');
+const config = require('../../shared/config');
+const logger = require('../../shared/logger').child('seeds');
 
 /**
  * Seed function

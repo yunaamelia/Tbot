@@ -32,6 +32,40 @@ const i18n = require('./lib/shared/i18n');
 const bot = getBot();
 
 /**
+ * Helper function to safely edit message text (handles "message is not modified" error)
+ * @param {Context} ctx Telegraf context
+ * @param {string} text Message text
+ * @param {Object} options Message options
+ * @returns {Promise<void>}
+ */
+async function safeEditMessageText(ctx, text, options = {}) {
+  try {
+    await ctx.editMessageText(text, options);
+  } catch (editError) {
+    // Ignore "message is not modified" error (Telegram API limitation)
+    if (!editError.message || !editError.message.includes('message is not modified')) {
+      throw editError;
+    }
+  }
+}
+
+/**
+ * Helper function to safely answer callback query
+ * @param {Context} ctx Telegraf context
+ * @param {string} text Optional text to show
+ * @returns {Promise<void>}
+ */
+async function safeAnswerCallbackQuery(ctx, text = '') {
+  if (ctx && typeof ctx.answerCallbackQuery === 'function') {
+    try {
+      await ctx.answerCallbackQuery(text);
+    } catch (answerError) {
+      logger.error('Error answering callback query', answerError);
+    }
+  }
+}
+
+/**
  * Admin command handlers (T106)
  */
 
@@ -186,17 +220,17 @@ bot.on(
         } else if (parsed.action === 'prev') {
           updatedMessage = await productCarouselHandler.handlePrevious(parsed.index);
         } else {
-          await ctx.answerCallbackQuery('Invalid action');
+          await safeAnswerCallbackQuery(ctx, 'Invalid action');
           return;
         }
 
         // Update message with new product card
-        await ctx.editMessageText(updatedMessage.text, {
+        await safeEditMessageText(ctx, updatedMessage.text, {
           parse_mode: updatedMessage.parse_mode,
           reply_markup: updatedMessage.reply_markup,
         });
 
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -224,20 +258,20 @@ bot.on(
           } catch (error) {
             logger.error('Error sending media group, falling back to text', error);
             // Fallback to text-only if media group fails
-            await ctx.editMessageText(response.textMessage.text, {
+            await safeEditMessageText(ctx, response.textMessage.text, {
               parse_mode: response.textMessage.parse_mode,
               reply_markup: response.textMessage.reply_markup,
             });
           }
         } else {
           // Text-only display (T044)
-          await ctx.editMessageText(response.message.text, {
+          await safeEditMessageText(ctx, response.message.text, {
             parse_mode: response.message.parse_mode,
             reply_markup: response.message.reply_markup,
           });
         }
 
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -245,11 +279,11 @@ bot.on(
       const carouselData = productDetailsHandler.parseCarouselCallback(callbackData);
       if (carouselData) {
         const cardMessage = await productCarouselHandler.getProductCard(carouselData.index);
-        await ctx.editMessageText(cardMessage.text, {
+        await safeEditMessageText(ctx, cardMessage.text, {
           parse_mode: cardMessage.parse_mode,
           reply_markup: cardMessage.reply_markup,
         });
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -267,12 +301,12 @@ bot.on(
         // Start checkout
         const checkoutResponse = await checkoutHandler.startCheckout(userId, productId, 1);
 
-        await ctx.editMessageText(checkoutResponse.message.text, {
+        await safeEditMessageText(ctx, checkoutResponse.message.text, {
           parse_mode: checkoutResponse.message.parse_mode,
           reply_markup: checkoutResponse.message.reply_markup,
         });
 
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -288,12 +322,12 @@ bot.on(
         // Proceed to payment method selection
         const paymentMethodResponse = await checkoutHandler.selectPaymentMethod(userId);
 
-        await ctx.editMessageText(paymentMethodResponse.message.text, {
+        await safeEditMessageText(ctx, paymentMethodResponse.message.text, {
           parse_mode: paymentMethodResponse.message.parse_mode,
           reply_markup: paymentMethodResponse.message.reply_markup,
         });
 
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -301,8 +335,8 @@ bot.on(
       if (callbackData === 'checkout_cancel') {
         const userId = ctx.from.id;
         await checkoutHandler.cancelCheckout(userId);
-        await ctx.editMessageText(i18n.t('checkout_cancelled'));
-        await ctx.answerCallbackQuery();
+        await safeEditMessageText(ctx, i18n.t('checkout_cancelled'));
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -316,7 +350,7 @@ bot.on(
 
         const session = await checkoutHandler.getCurrentSession(userId);
         if (!session) {
-          await ctx.answerCallbackQuery('Sesi checkout tidak ditemukan');
+          await safeAnswerCallbackQuery(ctx, 'Sesi checkout tidak ditemukan');
           return;
         }
 
@@ -372,12 +406,12 @@ bot.on(
             order.total_amount
           );
 
-          await ctx.editMessageText(manualMessage.text, {
+          await safeEditMessageText(ctx, manualMessage.text, {
             parse_mode: manualMessage.parse_mode,
           });
         }
 
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -387,12 +421,12 @@ bot.on(
         const session = await checkoutHandler.getCurrentSession(userId);
         if (session) {
           const summaryMessage = checkoutHandler.formatOrderSummary(session);
-          await ctx.editMessageText(summaryMessage.text, {
+          await safeEditMessageText(ctx, summaryMessage.text, {
             parse_mode: summaryMessage.parse_mode,
             reply_markup: summaryMessage.reply_markup,
           });
         }
-        await ctx.answerCallbackQuery();
+        await safeAnswerCallbackQuery(ctx);
         return;
       }
 
@@ -400,11 +434,11 @@ bot.on(
       if (callbackData.startsWith('faq_')) {
         const faqResponse = faqHandler.handleCallback(callbackData);
         if (faqResponse) {
-          await ctx.editMessageText(faqResponse.text, {
+          await safeEditMessageText(ctx, faqResponse.text, {
             parse_mode: faqResponse.parse_mode,
             reply_markup: faqResponse.reply_markup,
           });
-          await ctx.answerCallbackQuery();
+          await safeAnswerCallbackQuery(ctx);
           return;
         }
       }
@@ -414,8 +448,8 @@ bot.on(
         const userId = ctx.from.id;
         if (callbackData === 'chat_start') {
           const chatSession = await chatHandler.startChat(userId);
-          await ctx.editMessageText(chatSession.message, { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Chat dimulai');
+          await safeEditMessageText(ctx, chatSession.message, { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Chat dimulai');
           return;
         }
 
@@ -423,24 +457,26 @@ bot.on(
           const sessionId = parseInt(callbackData.replace('chat_accept_', ''), 10);
           const adminId = ctx.from.id;
           await chatHandler.acceptChat(sessionId, adminId);
-          await ctx.editMessageText('✅ Chat session telah diterima.', { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Chat diterima');
+          await safeEditMessageText(ctx, '✅ Chat session telah diterima.', {
+            parse_mode: 'Markdown',
+          });
+          await safeAnswerCallbackQuery(ctx, 'Chat diterima');
           return;
         }
 
         if (callbackData.startsWith('chat_reject_')) {
           const sessionId = parseInt(callbackData.replace('chat_reject_', ''), 10);
           await chatHandler.closeChat(sessionId, ctx.from.id);
-          await ctx.editMessageText('❌ Chat session ditolak.', { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Chat ditolak');
+          await safeEditMessageText(ctx, '❌ Chat session ditolak.', { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Chat ditolak');
           return;
         }
 
         if (callbackData.startsWith('chat_close_')) {
           const sessionId = parseInt(callbackData.replace('chat_close_', ''), 10);
           await chatHandler.closeChat(sessionId, ctx.from.id);
-          await ctx.editMessageText('✅ Chat session ditutup.', { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Chat ditutup');
+          await safeEditMessageText(ctx, '✅ Chat session ditutup.', { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Chat ditutup');
           return;
         }
       }
@@ -448,11 +484,12 @@ bot.on(
       // Handle ticket callbacks (T141)
       if (callbackData.startsWith('ticket_')) {
         if (callbackData === 'ticket_create') {
-          await ctx.editMessageText(
+          await safeEditMessageText(
+            ctx,
             'Silakan kirim pesan yang menjelaskan masalah Anda, dan saya akan membuat tiket support untuk Anda.',
             { parse_mode: 'Markdown' }
           );
-          await ctx.answerCallbackQuery('Kirim pesan untuk membuat tiket');
+          await safeAnswerCallbackQuery(ctx, 'Kirim pesan untuk membuat tiket');
           return;
         }
       }
@@ -486,8 +523,8 @@ bot.on(
             `Status pesanan: ${order.order_status}\n\n` +
             `Pelanggan telah diberitahu.`;
 
-          await ctx.editMessageText(message, { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Pembayaran berhasil diverifikasi');
+          await safeEditMessageText(ctx, message, { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Pembayaran berhasil diverifikasi');
 
           logger.info('Payment verified by admin', {
             adminId: admin.id,
@@ -497,9 +534,12 @@ bot.on(
         } catch (error) {
           logger.error('Error verifying payment', error, { adminId, paymentId });
           if (error.name === 'UnauthorizedError') {
-            await ctx.answerCallbackQuery('Anda tidak memiliki izin untuk melakukan tindakan ini');
+            await safeAnswerCallbackQuery(
+              ctx,
+              'Anda tidak memiliki izin untuk melakukan tindakan ini'
+            );
           } else {
-            await ctx.answerCallbackQuery('Terjadi kesalahan saat memverifikasi pembayaran');
+            await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat memverifikasi pembayaran');
           }
         }
         return;
@@ -537,8 +577,8 @@ bot.on(
             `Alasan: Pembayaran ditolak oleh admin\n\n` +
             `Pelanggan telah diberitahu.`;
 
-          await ctx.editMessageText(message, { parse_mode: 'Markdown' });
-          await ctx.answerCallbackQuery('Pembayaran ditolak');
+          await safeEditMessageText(ctx, message, { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Pembayaran ditolak');
 
           logger.info('Payment rejected by admin', {
             adminId: admin.id,
@@ -548,16 +588,19 @@ bot.on(
         } catch (error) {
           logger.error('Error rejecting payment', error, { adminId, paymentId });
           if (error.name === 'UnauthorizedError') {
-            await ctx.answerCallbackQuery('Anda tidak memiliki izin untuk melakukan tindakan ini');
+            await safeAnswerCallbackQuery(
+              ctx,
+              'Anda tidak memiliki izin untuk melakukan tindakan ini'
+            );
           } else {
-            await ctx.answerCallbackQuery('Terjadi kesalahan saat menolak pembayaran');
+            await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat menolak pembayaran');
           }
         }
         return;
       }
     } catch (error) {
       logger.error('Error handling callback query', error);
-      await ctx.answerCallbackQuery(i18n.t('error_generic'));
+      await safeAnswerCallbackQuery(ctx, i18n.t('error_generic'));
     }
   })
 );

@@ -36,65 +36,12 @@ async function raw(sql, bindings = []) {
 }
 
 /**
- * Optimized query helper for common patterns
- * Includes query timing for performance monitoring
- */
-class QueryBuilder {
-  constructor(tableName) {
-    this.tableName = tableName;
-    this.db = getDb();
-  }
-
-  /**
-   * Select with automatic query optimization hints
-   */
-  select(...columns) {
-    return this.db(this.tableName).select(...columns);
-  }
-
-  /**
-   * Insert with conflict handling
-   */
-  insert(data) {
-    return this.db(this.tableName).insert(data);
-  }
-
-  /**
-   * Update with where clause
-   */
-  update(data) {
-    return this.db(this.tableName).update(data);
-  }
-
-  /**
-   * Delete with where clause
-   */
-  delete() {
-    return this.db(this.tableName).delete();
-  }
-
-  /**
-   * Find by ID with automatic index usage
-   */
-  async findById(id) {
-    return this.db(this.tableName).where('id', id).first();
-  }
-
-  /**
-   * Find by column with index usage
-   */
-  async findBy(column, value) {
-    return this.db(this.tableName).where(column, value);
-  }
-}
-
-/**
  * Create query builder for a specific table
  * @param {string} tableName Table name
- * @returns {QueryBuilder} Query builder instance
+ * @returns {Knex.QueryBuilder} Knex query builder instance
  */
 function table(tableName) {
-  return new QueryBuilder(tableName);
+  return getDb()(tableName);
 }
 
 module.exports = {

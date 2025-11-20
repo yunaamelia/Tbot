@@ -32,6 +32,9 @@ npm run prepare
 cp .env.example .env
 # Edit .env with your configuration
 
+# Generate secure ENCRYPTION_KEY (required for credential encryption)
+node scripts/generate-encryption-key.js
+
 # Setup database
 npm run migrate
 npm run seed

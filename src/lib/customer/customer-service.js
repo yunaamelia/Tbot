@@ -42,7 +42,11 @@ class CustomerService {
         preferences: {},
       });
 
-      const [customerId] = await table('customers').insert(customer.toDatabase()).returning('id');
+      // Get customer data without id for insert (id will be auto-generated)
+      const customerData = customer.toDatabase();
+      delete customerData.id; // Remove id to let database auto-generate it
+
+      const [customerId] = await table('customers').insert(customerData).returning('id');
 
       customer.id = customerId;
       logger.info('New customer created', { customerId, telegramUserId });

@@ -213,7 +213,7 @@ async function gracefulShutdown(signal) {
     if (server) {
       server.close(() => {
         logger.info('HTTP/HTTPS server closed');
-      });
+});
     }
 
     // Close database connections
@@ -233,7 +233,7 @@ async function gracefulShutdown(signal) {
     }
 
     logger.info('Graceful shutdown completed');
-    process.exit(0);
+  process.exit(0);
   } catch (error) {
     logger.error('Error during graceful shutdown', error);
     process.exit(1);
