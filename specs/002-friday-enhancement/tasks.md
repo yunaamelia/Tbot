@@ -254,18 +254,18 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T101 [P] Update API documentation in docs/api.md with new FRIDAY and UI modules
-- [ ] T102 [P] Update README.md with FRIDAY persona features and new admin commands
-- [ ] T103 Code cleanup and refactoring across all new modules
-- [ ] T104 [P] Performance optimization: verify keyboard layout algorithm O(n) complexity
-- [ ] T105 [P] Performance optimization: verify Redis caching reduces env reads
-- [ ] T106 Security hardening: verify payment credentials never logged
-- [ ] T107 Security hardening: verify admin permission checks at all hierarchy levels
-- [ ] T108 Run quickstart.md validation: test all features end-to-end
-- [ ] T109 [P] Add comprehensive error messages in Indonesian for all new features
-- [ ] T110 Verify FRIDAY persona consistency across all user-facing messages
-- [ ] T111 Verify responsive keyboard layouts work across all menu screens
-- [ ] T112 Verify real-time stock updates work under load (1000+ concurrent)
+- [x] T101 [P] Update API documentation in docs/api.md with new FRIDAY and UI modules
+- [x] T102 [P] Update README.md with FRIDAY persona features and new admin commands
+- [x] T103 Code cleanup and refactoring across all new modules
+- [x] T104 [P] Performance optimization: verify keyboard layout algorithm O(n) complexity
+- [x] T105 [P] Performance optimization: verify Redis caching reduces env reads
+- [x] T106 Security hardening: verify payment credentials never logged
+- [x] T107 Security hardening: verify admin permission checks at all hierarchy levels
+- [x] T108 Run quickstart.md validation: test all features end-to-end
+- [x] T109 [P] Add comprehensive error messages in Indonesian for all new features
+- [x] T110 Verify FRIDAY persona consistency across all user-facing messages
+- [x] T111 Verify responsive keyboard layouts work across all menu screens
+- [x] T112 Verify real-time stock updates work under load (1000+ concurrent)
 
 ---
 

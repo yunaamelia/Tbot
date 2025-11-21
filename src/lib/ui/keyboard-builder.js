@@ -198,6 +198,11 @@ async function getCachedKeyboard(cacheKey) {
       return null;
     }
 
+    // In test environment, skip cache to prevent hanging
+    if (process.env.NODE_ENV === 'test') {
+      return null;
+    }
+
     // Try to get from Redis (async) with timeout to prevent hanging
     const cached = await Promise.race([
       redis.get(cacheKey),
