@@ -157,24 +157,24 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T057 [P] [US4] Integration test for top-level /admin command showing menu in tests/integration/admin-hierarchy.test.js
-- [ ] T058 [P] [US4] Integration test for hierarchical command execution (/admin product add) in tests/integration/admin-hierarchy.test.js
-- [ ] T059 [P] [US4] Integration test for invalid command path with suggestions in tests/integration/admin-hierarchy.test.js
-- [ ] T060 [P] [US4] Integration test for permission checking at hierarchy levels in tests/integration/admin-hierarchy.test.js
-- [ ] T061 [P] [US4] Integration test for command help system in tests/integration/admin-hierarchy.test.js
-- [ ] T062 [P] [US4] Unit test for command routing logic in tests/unit/admin/hierarchy/command-router.test.js
-- [ ] T063 [P] [US4] Unit test for command registry operations in tests/unit/admin/hierarchy/command-registry.test.js
+- [x] T057 [P] [US4] Integration test for top-level /admin command showing menu in tests/integration/admin-hierarchy.test.js
+- [x] T058 [P] [US4] Integration test for hierarchical command execution (/admin product add) in tests/integration/admin-hierarchy.test.js
+- [x] T059 [P] [US4] Integration test for invalid command path with suggestions in tests/integration/admin-hierarchy.test.js
+- [x] T060 [P] [US4] Integration test for permission checking at hierarchy levels in tests/integration/admin-hierarchy.test.js
+- [x] T061 [P] [US4] Integration test for command help system in tests/integration/admin-hierarchy.test.js
+- [x] T062 [P] [US4] Unit test for command routing logic in tests/unit/admin/hierarchy/command-router.test.js
+- [x] T063 [P] [US4] Unit test for command registry operations in tests/unit/admin/hierarchy/command-registry.test.js
 
 ### Implementation for User Story 4
 
-- [ ] T064 [P] [US4] Create command-registry.js with registerCommand() method in src/lib/admin/hierarchy/command-registry.js
-- [ ] T065 [P] [US4] Create command-help.js with getHelp() and getSuggestions() methods in src/lib/admin/hierarchy/command-help.js
-- [ ] T066 [US4] Implement command-router.js with routeCommand() method in src/lib/admin/hierarchy/command-router.js
-- [ ] T067 [US4] Register existing admin commands in hierarchical structure in src/lib/admin/admin-commands.js
-- [ ] T068 [US4] Integrate command router into bot.js /admin command handler in src/bot.js
-- [ ] T069 [US4] Add permission checking at each hierarchy level in src/lib/admin/hierarchy/command-router.js
-- [ ] T070 [US4] Add error handling for invalid commands with helpful suggestions
-- [ ] T071 [US4] Add logging for command routing and execution
+- [x] T064 [P] [US4] Create command-registry.js with registerCommand() method in src/lib/admin/hierarchy/command-registry.js
+- [x] T065 [P] [US4] Create command-help.js with getHelp() and getSuggestions() methods in src/lib/admin/hierarchy/command-help.js
+- [x] T066 [US4] Implement command-router.js with routeCommand() method in src/lib/admin/hierarchy/command-router.js
+- [x] T067 [US4] Register existing admin commands in hierarchical structure in src/lib/admin/admin-commands.js
+- [x] T068 [US4] Integrate command router into bot.js /admin command handler in src/bot.js
+- [x] T069 [US4] Add permission checking at each hierarchy level in src/lib/admin/hierarchy/command-router.js
+- [x] T070 [US4] Add error handling for invalid commands with helpful suggestions
+- [x] T071 [US4] Add logging for command routing and execution
 
 **Checkpoint**: At this point, User Story 4 should be fully functional. Admins can navigate and execute commands through hierarchical structure.
 

@@ -17,6 +17,8 @@ const manualVerificationHandler = require('./lib/payment/manual-verification');
 const customerService = require('./lib/customer/customer-service');
 const paymentService = require('./lib/payment/payment-service');
 const adminCommands = require('./lib/admin/admin-commands');
+const commandRouter = require('./lib/admin/hierarchy/command-router');
+const commandHelp = require('./lib/admin/hierarchy/command-help');
 const accessControl = require('./lib/security/access-control');
 const orderService = require('./lib/order/order-service');
 const faqHandler = require('./lib/customer-service/faq-handler');
@@ -67,8 +69,51 @@ async function safeAnswerCallbackQuery(ctx, text = '') {
 }
 
 /**
- * Admin command handlers (T106)
+ * Admin command handlers (T106, T068)
  */
+
+// /admin hierarchical command handler (T068)
+bot.command(
+  'admin',
+  asyncHandler(async (ctx) => {
+    try {
+      const commandText = ctx.message.text;
+      const parts = commandText.split(' ').slice(1); // Remove '/admin'
+      const path = parts.length > 0 ? `admin ${parts.join(' ')}` : 'admin';
+      const args = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+      // Route command through hierarchical system
+      const result = await commandRouter.routeCommand(path, ctx.from.id, args);
+
+      if (result.success && result.handler) {
+        const response = await result.handler(ctx.from.id, args);
+        await ctx.reply(response.text, {
+          parse_mode: response.parse_mode || 'Markdown',
+        });
+      } else {
+        // Command not found or error - show error with suggestions
+        let errorMessage = `❌ ${result.error || 'Perintah tidak ditemukan.'}\n\n`;
+
+        if (result.suggestions && result.suggestions.length > 0) {
+          errorMessage += '*Saran perintah:*\n';
+          result.suggestions.forEach((suggestion) => {
+            const displayPath = suggestion.replace(/\./g, ' ');
+            errorMessage += `• /${displayPath}\n`;
+          });
+        } else {
+          // Show help for admin if no suggestions
+          const help = await commandRouter.getHelp('admin', ctx.from.id);
+          errorMessage += commandHelp.formatHelpMessage(help);
+        }
+
+        await ctx.reply(errorMessage, { parse_mode: 'Markdown' });
+      }
+    } catch (error) {
+      logger.error('Error handling /admin command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
 
 // /stock command handler (T098, T099)
 bot.command(

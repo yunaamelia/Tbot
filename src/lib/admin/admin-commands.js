@@ -13,6 +13,7 @@ const { setStoreStatus } = require('../shared/store-config');
 const { ValidationError } = require('../shared/errors');
 const logger = require('../shared/logger').child('admin-commands');
 const i18n = require('../shared/i18n');
+const commandRegistry = require('./hierarchy/command-registry');
 
 /**
  * Escape HTML special characters for Telegram HTML parse mode
@@ -289,6 +290,62 @@ class AdminCommands {
       };
     }
   }
+  /**
+   * Register all commands in hierarchical structure (T067)
+   * This method should be called during initialization
+   */
+  registerHierarchicalCommands() {
+    // Register admin.product.add command
+    commandRegistry.registerCommand(
+      'admin.product.add',
+      (telegramUserId, args) => this.handleAddProductCommand(telegramUserId, args),
+      {
+        permissions: ['stock_manage'],
+        description: 'Tambah produk baru',
+        usage: '/admin product add name|description|price|stock|category',
+      }
+    );
+
+    // Register admin.stock.update command
+    commandRegistry.registerCommand(
+      'admin.stock.update',
+      (telegramUserId, args) => this.handleStockCommand(telegramUserId, args),
+      {
+        permissions: ['stock_manage'],
+        description: 'Update stok produk',
+        usage: '/admin stock update product_id quantity',
+      }
+    );
+
+    // Register admin.store.open command
+    commandRegistry.registerCommand(
+      'admin.store.open',
+      (telegramUserId) => this.handleOpenCommand(telegramUserId),
+      {
+        permissions: ['store_control'],
+        description: 'Buka toko',
+        usage: '/admin store open',
+      }
+    );
+
+    // Register admin.store.close command
+    commandRegistry.registerCommand(
+      'admin.store.close',
+      (telegramUserId) => this.handleCloseCommand(telegramUserId),
+      {
+        permissions: ['store_control'],
+        description: 'Tutup toko',
+        usage: '/admin store close',
+      }
+    );
+
+    logger.info('Hierarchical commands registered');
+  }
 }
 
-module.exports = new AdminCommands();
+const adminCommandsInstance = new AdminCommands();
+
+// Auto-register hierarchical commands on module load (T067)
+adminCommandsInstance.registerHierarchicalCommands();
+
+module.exports = adminCommandsInstance;
