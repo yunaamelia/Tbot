@@ -4,6 +4,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-19
 
 ## Active Technologies
 - Node.js 20.0.0+ (ES2022) (002-friday-enhancement)
+- Node.js 20+ with ES2022 features + Telegraf 4.15+, Express.js 4.18+, Knex.js 3.0+, ioredis 5.3+ (005-keyboard-refactor)
+- PostgreSQL/MySQL via Knex.js, Redis 7.0+ for caching and state management (005-keyboard-refactor)
 
 - Node.js LTS 20.x+ (see research.md for rationale) + Telegraf.js (Telegram bot), Knex.js (database abstraction), Duitku SDK (QRIS payment), Express.js (webhook server), ioredis (Redis client), Jest (testing) (001-premium-store-bot)
 
@@ -23,10 +25,10 @@ tests/
 Node.js LTS 20.x+ (see research.md for rationale): Follow standard conventions
 
 ## Recent Changes
+- 005-keyboard-refactor: Added Node.js 20+ with ES2022 features + Telegraf 4.15+, Express.js 4.18+, Knex.js 3.0+, ioredis 5.3+
 - 003-enhanced-keyboard: Added Node.js 20.0.0+ (ES2022)
 - 002-friday-enhancement: Added Node.js 20.0.0+ (ES2022)
 
-- 001-premium-store-bot: Added Node.js LTS 20.x+ (see research.md for rationale) + Telegraf.js (Telegram bot), Knex.js (database abstraction), Duitku SDK (QRIS payment), Express.js (webhook server), ioredis (Redis client), Jest (testing)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
