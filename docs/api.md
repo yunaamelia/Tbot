@@ -16,8 +16,10 @@ This document provides comprehensive documentation for all public library interf
 7. [Security Module](#security-module)
 8. [Database Module](#database-module)
 9. [Telegram Module](#telegram-module)
-10. [Shared Utilities](#shared-utilities)
-11. [Webhook Endpoints](#webhook-endpoints)
+10. [FRIDAY Persona Module](#friday-persona-module)
+11. [UI Module](#ui-module)
+12. [Shared Utilities](#shared-utilities)
+13. [Webhook Endpoints](#webhook-endpoints)
 
 ---
 
@@ -108,7 +110,7 @@ Format product details with media group.
 
 #### `updateStock(productId, quantity, adminTelegramId)`
 
-Update product stock.
+Update product stock with real-time synchronization.
 
 **Parameters**:
 - `productId` (number): Product ID
@@ -118,6 +120,66 @@ Update product stock.
 **Returns**: `Promise<Stock>`
 
 **Throws**: `ValidationError` if quantity is invalid
+
+**Features**:
+- Publishes Redis pub/sub notification for real-time catalog updates
+- Updates `last_updated_by` and `update_history` tracking
+- Automatically updates product availability status (available ↔ out_of_stock)
+- Uses database transactions to prevent race conditions
+
+### StockNotifier (Real-Time Updates)
+
+**Location**: `src/lib/product/realtime/stock-notifier.js`
+
+#### `notifyStockUpdate(productId, previousQuantity, newQuantity, adminId)`
+
+Publish stock update notification to Redis channel.
+
+**Parameters**:
+- `productId` (number): Product ID
+- `previousQuantity` (number): Quantity before update
+- `newQuantity` (number): Quantity after update
+- `adminId` (number): Admin ID who made the update
+
+**Returns**: `Promise<void>`
+
+**Channel**: `stock:updated`
+
+#### `subscribeToUpdates(callback)`
+
+Subscribe to stock update notifications.
+
+**Parameters**:
+- `callback` (Function): Callback function `(update) => void`
+
+**Returns**: `Promise<Object|null>` Redis subscriber client or null if Redis unavailable
+
+### CatalogSync (Real-Time Synchronization)
+
+**Location**: `src/lib/product/realtime/catalog-sync.js`
+
+#### `syncCatalog(productId, quantity)`
+
+Synchronize catalog after stock update.
+
+**Parameters**:
+- `productId` (number): Product ID
+- `quantity` (number): New stock quantity
+
+**Returns**: `Promise<void>`
+
+**Features**:
+- Invalidates product cache in Redis
+- Updates product availability status automatically
+- Handles errors gracefully (doesn't block operations)
+
+#### `startListening()`
+
+Start listening to stock update notifications.
+
+**Returns**: `Promise<void>`
+
+**Note**: Should be called once at application startup.
 
 ---
 
@@ -227,6 +289,43 @@ Verify manual payment by admin.
 
 **Throws**: `UnauthorizedError` if admin not authorized
 
+### PaymentConfig (Dynamic Payment Methods)
+
+**Location**: `src/lib/payment/config/payment-config.js`
+
+#### `getAvailableMethods(forceRefresh = false)`
+
+Get all available payment methods based on environment configuration.
+
+**Parameters**:
+- `forceRefresh` (boolean): If true, bypass cache and reload from environment
+
+**Returns**: `Promise<Array<PaymentMethod>>` Array of available payment methods
+
+**Note**: Methods are cached in Redis for 1 hour to reduce environment variable reads.
+
+**Example**:
+```javascript
+const paymentConfig = require('./src/lib/payment/config/payment-config');
+const methods = await paymentConfig.getAvailableMethods();
+// Returns: [{ type: 'qris', name: 'QRIS', enabled: true, ... }, ...]
+```
+
+#### `isMethodEnabled(type)`
+
+Check if a specific payment method is enabled.
+
+**Parameters**:
+- `type` (string): Payment method type ('qris', 'ewallet', 'bank')
+
+**Returns**: `Promise<boolean>` True if method is enabled
+
+#### `refreshCache()`
+
+Force refresh of payment method cache from environment variables.
+
+**Returns**: `Promise<void>`
+
 ### QRISHandler
 
 **Location**: `src/lib/payment/qris-handler.js`
@@ -291,6 +390,69 @@ Handle stock management command.
 **Returns**: `Promise<Object>` with response text and parse_mode
 
 **Throws**: `UnauthorizedError` if admin not authorized
+
+### CommandRouter (Hierarchical Commands)
+
+**Location**: `src/lib/admin/hierarchy/command-router.js`
+
+#### `routeCommand(path, telegramUserId, args = '')`
+
+Route a hierarchical command to the appropriate handler.
+
+**Parameters**:
+- `path` (string): Command path (e.g., 'admin product add')
+- `telegramUserId` (number): Telegram user ID for permission checking
+- `args` (string, optional): Command arguments
+
+**Returns**: `Promise<CommandResult>` Routing result with handler or error
+
+**Example**:
+```javascript
+const commandRouter = require('./src/lib/admin/hierarchy/command-router');
+const result = await commandRouter.routeCommand('admin product add', 123456789, 'Product Name 100000');
+if (result.success) {
+  const response = await result.handler(123456789, 'Product Name 100000');
+}
+```
+
+### CommandRegistry
+
+**Location**: `src/lib/admin/hierarchy/command-registry.js`
+
+#### `registerCommand(path, handler, options = {})`
+
+Register a hierarchical command.
+
+**Parameters**:
+- `path` (string): Command path (e.g., 'admin.product.add')
+- `handler` (Function): Command handler function
+- `options` (Object, optional):
+  - `description` (string): Command description
+  - `usage` (string): Usage example
+  - `permissions` (Array<string>): Required permissions
+
+#### `getCommand(path)`
+
+Get registered command by path.
+
+**Parameters**:
+- `path` (string): Command path
+
+**Returns**: `Command|null` Registered command or null
+
+### CommandHelp
+
+**Location**: `src/lib/admin/hierarchy/command-help.js`
+
+#### `getHelp(path = 'admin', telegramUserId)`
+
+Get help information for commands.
+
+**Parameters**:
+- `path` (string): Command path (optional)
+- `telegramUserId` (number): Telegram user ID (optional, for permission filtering)
+
+**Returns**: `Promise<HelpInfo>` Help information with available commands
 
 ### AdminInterface
 
@@ -521,6 +683,190 @@ Build inline keyboard markup.
 - `buttons` (Array): Array of button rows
 
 **Returns**: `Object` Telegram keyboard markup
+
+---
+
+## FRIDAY Persona Module
+
+**Task: T101**  
+**Requirements: FR-001, FR-002**  
+**Feature: 002-friday-enhancement**
+
+### PersonaService
+
+**Location**: `src/lib/friday/persona-service.js`
+
+#### `getGreeting(telegramUserId, timeOfDay = null)`
+
+Get personalized FRIDAY greeting based on time of day.
+
+**Parameters**:
+- `telegramUserId` (number): Telegram user ID
+- `timeOfDay` (string, optional): Override time of day ('morning', 'afternoon', 'evening', 'night')
+
+**Returns**: `Promise<string>` Personalized greeting message
+
+**Throws**: `ValidationError` if telegramUserId is invalid
+
+**Time Ranges**:
+- Morning: 6:00 - 11:59
+- Afternoon: 12:00 - 17:59
+- Evening: 18:00 - 23:59
+- Night: 0:00 - 5:59
+
+**Example**:
+```javascript
+const personaService = require('./src/lib/friday/persona-service');
+const greeting = await personaService.getGreeting(123456789);
+// Returns: "Selamat pagi! Saya FRIDAY, asisten AI Anda. Siap membantu Anda menemukan akun premium terbaik..."
+```
+
+#### `getTimeOfDay()`
+
+Determine current time of day based on server time.
+
+**Returns**: `string` One of: 'morning', 'afternoon', 'evening', 'night'
+
+**Example**:
+```javascript
+const timeOfDay = personaService.getTimeOfDay();
+// Returns: 'afternoon'
+```
+
+#### `formatMessage(text, options = {})`
+
+Format a message with FRIDAY persona style.
+
+**Parameters**:
+- `text` (string): Message text to format
+- `options` (Object, optional):
+  - `includeGreeting` (boolean): Include time-based greeting (default: false)
+  - `tone` (string): Override tone ('professional', 'friendly', 'assistant')
+
+**Returns**: `string` Formatted message
+
+**Example**:
+```javascript
+const message = personaService.formatMessage('Produk tersedia', { includeGreeting: true });
+// Returns formatted message with FRIDAY persona
+```
+
+---
+
+## UI Module
+
+**Task: T101**  
+**Requirements: FR-003, FR-004, FR-005**  
+**Feature: 002-friday-enhancement**
+
+### KeyboardBuilder
+
+**Location**: `src/lib/ui/keyboard-builder.js`
+
+#### `createKeyboard(items, options = {})`
+
+Create responsive inline keyboard with auto-balanced layout.
+
+**Parameters**:
+- `items` (Array<Object>): Array of button objects
+  - `text` (string): Button text
+  - `callback_data` (string): Callback data
+  - `url` (string, optional): URL for URL buttons
+- `options` (Object, optional):
+  - `includeNavigation` (boolean): Include Home/Back buttons (default: true)
+  - `maxItemsPerRow` (number): Maximum items per row (default: 3)
+  - `pattern` (string): Override pattern (optional)
+
+**Returns**: `Promise<Object>` Telegraf inline keyboard markup
+
+**Layout Patterns**:
+- 9 items → 3x3x2 (3 rows × 3, 1 row × 2 nav)
+- 6 items → 3x2x2 (3 rows × 2, 1 row × 2 nav)
+- 4 items → 3x2x1 (2 rows × 2, 1 row × 1 nav)
+- 2 items → 3x1x1 (1 row × 2, 1 row × 1 nav)
+- >9 items → Pagination with navigation
+
+**Example**:
+```javascript
+const keyboardBuilder = require('./src/lib/ui/keyboard-builder');
+const items = [
+  { text: 'Product 1', callback_data: 'product_1' },
+  { text: 'Product 2', callback_data: 'product_2' },
+  { text: 'Product 3', callback_data: 'product_3' }
+];
+const keyboard = await keyboardBuilder.createKeyboard(items);
+// Returns: Markup.inlineKeyboard with balanced layout + Home/Back
+```
+
+#### `createPaginatedKeyboard(items, options = {})`
+
+Create paginated keyboard for items >9.
+
+**Parameters**:
+- `items` (Array<Object>): Array of button objects
+- `options` (Object, optional): Same as `createKeyboard`
+
+**Returns**: `Promise<Object>` Telegraf inline keyboard markup with pagination controls
+
+### LayoutBalancer
+
+**Location**: `src/lib/ui/layout-balancer.js`
+
+#### `balanceLayout(items, maxItemsPerRow = 3)`
+
+Auto-balance incomplete rows to distribute items evenly.
+
+**Parameters**:
+- `items` (Array): Items to balance
+- `maxItemsPerRow` (number): Maximum items per row (default: 3)
+
+**Returns**: `Array<Array>` Array of rows, each row is array of items
+
+**Time Complexity**: O(n) where n is the number of items
+
+**Example**:
+```javascript
+const { balanceLayout } = require('./src/lib/ui/layout-balancer');
+const items = [1, 2, 3, 4, 5, 6, 7]; // 7 items
+const rows = balanceLayout(items, 3);
+// Returns: [[1, 2, 3], [4, 5], [6, 7]]
+// Balanced: 3 items, 2 items, 2 items (difference ≤ 1)
+```
+
+### NavigationHandler
+
+**Location**: `src/lib/ui/navigation-handler.js`
+
+#### `createNavigationRow()`
+
+Create fixed navigation row with Home and Back buttons.
+
+**Returns**: `Array<Markup.button>` Array with Home and Back buttons
+
+**Example**:
+```javascript
+const { createNavigationRow } = require('./src/lib/ui/navigation-handler');
+const navRow = createNavigationRow();
+// Returns: [Markup.button.callback('🏠 Home', 'nav_home'), 
+//           Markup.button.callback('◀️ Back', 'nav_back')]
+```
+
+#### `addNavigationHistory(userId, screen)`
+
+Add navigation history entry.
+
+**Parameters**:
+- `userId` (number): User Telegram ID
+- `screen` (string): Screen identifier
+
+#### `getPreviousScreen(userId)`
+
+Get previous screen from navigation history.
+
+**Parameters**:
+- `userId` (number): User Telegram ID
+
+**Returns**: `string|null` Previous screen identifier or null
 
 ---
 

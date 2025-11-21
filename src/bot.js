@@ -17,12 +17,15 @@ const manualVerificationHandler = require('./lib/payment/manual-verification');
 const customerService = require('./lib/customer/customer-service');
 const paymentService = require('./lib/payment/payment-service');
 const adminCommands = require('./lib/admin/admin-commands');
+const commandRouter = require('./lib/admin/hierarchy/command-router');
+const commandHelp = require('./lib/admin/hierarchy/command-help');
 const accessControl = require('./lib/security/access-control');
 const orderService = require('./lib/order/order-service');
 const faqHandler = require('./lib/customer-service/faq-handler');
 const chatHandler = require('./lib/customer-service/chat-handler');
 const customerServiceRouter = require('./lib/customer-service/customer-service-router');
 const personalizationEngine = require('./lib/customer-service/personalization-engine');
+const personaService = require('./lib/friday/persona-service');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -66,8 +69,51 @@ async function safeAnswerCallbackQuery(ctx, text = '') {
 }
 
 /**
- * Admin command handlers (T106)
+ * Admin command handlers (T106, T068)
  */
+
+// /admin hierarchical command handler (T068)
+bot.command(
+  'admin',
+  asyncHandler(async (ctx) => {
+    try {
+      const commandText = ctx.message.text;
+      const parts = commandText.split(' ').slice(1); // Remove '/admin'
+      const path = parts.length > 0 ? `admin ${parts.join(' ')}` : 'admin';
+      const args = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+      // Route command through hierarchical system
+      const result = await commandRouter.routeCommand(path, ctx.from.id, args);
+
+      if (result.success && result.handler) {
+        const response = await result.handler(ctx.from.id, args);
+        await ctx.reply(response.text, {
+          parse_mode: response.parse_mode || 'Markdown',
+        });
+      } else {
+        // Command not found or error - show error with suggestions
+        let errorMessage = `❌ ${result.error || 'Perintah tidak ditemukan.'}\n\n`;
+
+        if (result.suggestions && result.suggestions.length > 0) {
+          errorMessage += '*Saran perintah:*\n';
+          result.suggestions.forEach((suggestion) => {
+            const displayPath = suggestion.replace(/\./g, ' ');
+            errorMessage += `• /${displayPath}\n`;
+          });
+        } else {
+          // Show help for admin if no suggestions
+          const help = await commandRouter.getHelp('admin', ctx.from.id);
+          errorMessage += commandHelp.formatHelpMessage(help);
+        }
+
+        await ctx.reply(errorMessage, { parse_mode: 'Markdown' });
+      }
+    } catch (error) {
+      logger.error('Error handling /admin command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
 
 // /stock command handler (T098, T099)
 bot.command(
@@ -112,6 +158,21 @@ bot.command(
   })
 );
 
+// /addproduct command handler
+bot.command(
+  'addproduct',
+  asyncHandler(async (ctx) => {
+    try {
+      const commandArgs = ctx.message.text.replace('/addproduct', '').trim();
+      const response = await adminCommands.handleAddProductCommand(ctx.from.id, commandArgs);
+      await ctx.reply(response.text, { parse_mode: response.parse_mode });
+    } catch (error) {
+      logger.error('Error handling /addproduct command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
+
 /**
  * /start command handler
  * Shows first product card or empty catalog message
@@ -128,8 +189,12 @@ bot.command(
         username: ctx.from.username,
       });
 
-      // Get personalized greeting (T143)
-      const greeting = await personalizationEngine.getPersonalizedGreeting(userId);
+      // Get FRIDAY personalized greeting (T023, User Story 1)
+      const fridayGreeting = await personaService.getGreeting(userId);
+
+      // Get personalized greeting (T143) - combine with FRIDAY greeting
+      const personalizedGreeting = await personalizationEngine.getPersonalizedGreeting(userId);
+      const greeting = fridayGreeting + '\n\n' + personalizedGreeting;
 
       // Check if store is open
       const storeOpen = await isStoreOpen();
@@ -150,10 +215,31 @@ bot.command(
 
       // Get first product card
       const firstCard = await productCarouselHandler.getProductCard(0);
-      await ctx.reply(`${greeting}\n\n${firstCard.text}`, {
-        parse_mode: firstCard.parse_mode,
-        reply_markup: firstCard.reply_markup,
-      });
+
+      // Handle media group response (T042D)
+      if (firstCard.type === 'media_group') {
+        try {
+          await ctx.replyWithMediaGroup(firstCard.mediaGroup);
+          // Also send text message with buttons (since media group caption is limited)
+          await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+            parse_mode: firstCard.textMessage.parse_mode,
+            reply_markup: firstCard.textMessage.reply_markup,
+          });
+        } catch (error) {
+          logger.error('Error sending media group, falling back to text', error);
+          // Fallback to text-only if media group fails
+          await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+            parse_mode: firstCard.textMessage.parse_mode,
+            reply_markup: firstCard.textMessage.reply_markup,
+          });
+        }
+      } else {
+        // Text-only display
+        await ctx.reply(`${greeting}\n\n${firstCard.text}`, {
+          parse_mode: firstCard.parse_mode,
+          reply_markup: firstCard.reply_markup,
+        });
+      }
     } catch (error) {
       logger.error('Error handling /start command', error);
       await ctx.reply(i18n.t('error_generic'));
@@ -224,11 +310,30 @@ bot.on(
           return;
         }
 
-        // Update message with new product card
-        await safeEditMessageText(ctx, updatedMessage.text, {
-          parse_mode: updatedMessage.parse_mode,
-          reply_markup: updatedMessage.reply_markup,
-        });
+        // Handle media group response (T042D)
+        if (updatedMessage.type === 'media_group') {
+          try {
+            await ctx.replyWithMediaGroup(updatedMessage.mediaGroup);
+            // Also send text message with buttons
+            await ctx.reply(updatedMessage.textMessage.text, {
+              parse_mode: updatedMessage.textMessage.parse_mode,
+              reply_markup: updatedMessage.textMessage.reply_markup,
+            });
+          } catch (error) {
+            logger.error('Error sending media group, falling back to text', error);
+            // Fallback to text-only if media group fails
+            await safeEditMessageText(ctx, updatedMessage.textMessage.text, {
+              parse_mode: updatedMessage.textMessage.parse_mode,
+              reply_markup: updatedMessage.textMessage.reply_markup,
+            });
+          }
+        } else {
+          // Text-only display
+          await safeEditMessageText(ctx, updatedMessage.text, {
+            parse_mode: updatedMessage.parse_mode,
+            reply_markup: updatedMessage.reply_markup,
+          });
+        }
 
         await safeAnswerCallbackQuery(ctx);
         return;
@@ -279,10 +384,31 @@ bot.on(
       const carouselData = productDetailsHandler.parseCarouselCallback(callbackData);
       if (carouselData) {
         const cardMessage = await productCarouselHandler.getProductCard(carouselData.index);
-        await safeEditMessageText(ctx, cardMessage.text, {
-          parse_mode: cardMessage.parse_mode,
-          reply_markup: cardMessage.reply_markup,
-        });
+
+        // Handle media group response (T042D)
+        if (cardMessage.type === 'media_group') {
+          try {
+            await ctx.replyWithMediaGroup(cardMessage.mediaGroup);
+            // Also send text message with buttons
+            await ctx.reply(cardMessage.textMessage.text, {
+              parse_mode: cardMessage.textMessage.parse_mode,
+              reply_markup: cardMessage.textMessage.reply_markup,
+            });
+          } catch (error) {
+            logger.error('Error sending media group, falling back to text', error);
+            // Fallback to text-only if media group fails
+            await safeEditMessageText(ctx, cardMessage.textMessage.text, {
+              parse_mode: cardMessage.textMessage.parse_mode,
+              reply_markup: cardMessage.textMessage.reply_markup,
+            });
+          }
+        } else {
+          // Text-only display
+          await safeEditMessageText(ctx, cardMessage.text, {
+            parse_mode: cardMessage.parse_mode,
+            reply_markup: cardMessage.reply_markup,
+          });
+        }
         await safeAnswerCallbackQuery(ctx);
         return;
       }
@@ -671,12 +797,99 @@ bot.catch((err, ctx) => {
   }
 });
 
+/**
+ * Graceful shutdown handler
+ * Closes all connections and resources before exiting
+ * @param {string} signal Signal received (SIGINT, SIGTERM)
+ * @returns {Promise<void>}
+ */
+async function gracefulShutdown(signal) {
+  logger.info(`Received ${signal}, shutting down gracefully...`);
+
+  try {
+    // Stop catalog sync listener
+    try {
+      const catalogSync = require('./lib/product/realtime/catalog-sync');
+      await Promise.race([
+        catalogSync.stopListening(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error stopping catalog sync listener', error);
+    }
+
+    // Stop checkout timeout scheduler
+    try {
+      const checkoutTimeout = require('./lib/order/checkout-timeout');
+      checkoutTimeout.stopCleanupScheduler();
+    } catch (error) {
+      logger.error('Error stopping checkout timeout scheduler', error);
+    }
+
+    // Stop notification retry scheduler
+    try {
+      const notificationRetryScheduler = require('./lib/admin/notification-retry-scheduler');
+      notificationRetryScheduler.stopScheduler();
+    } catch (error) {
+      logger.error('Error stopping notification retry scheduler', error);
+    }
+
+    // Stop Telegram bot
+    try {
+      await Promise.race([
+        bot.stop(signal),
+        new Promise((resolve) => setTimeout(resolve, 3000)), // 3s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error stopping bot', error);
+    }
+
+    // Close database connections
+    try {
+      const { closeDb } = require('./lib/database/db-connection');
+      await Promise.race([
+        closeDb(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error closing database connections', error);
+    }
+
+    // Close Redis connections
+    try {
+      const redisClient = require('./lib/shared/redis-client');
+      await Promise.race([
+        redisClient.closeRedis(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error closing Redis connections', error);
+    }
+
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown', error);
+    process.exit(1);
+  }
+}
+
 // Launch bot if this file is run directly
 if (require.main === module) {
   bot
     .launch()
-    .then(() => {
+    .then(async () => {
       logger.info('Bot launched successfully');
+
+      // Start catalog sync listener for real-time stock updates (T084)
+      try {
+        const catalogSync = require('./lib/product/realtime/catalog-sync');
+        await catalogSync.startListening();
+        logger.info('Catalog sync listener started');
+      } catch (error) {
+        logger.error('Failed to start catalog sync listener', error);
+        // Don't exit - bot can work without real-time sync
+      }
 
       // Start checkout timeout cleanup scheduler (T074)
       const checkoutTimeout = require('./lib/order/checkout-timeout');
@@ -691,9 +904,14 @@ if (require.main === module) {
       process.exit(1);
     });
 
-  // Graceful shutdown
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  // Register shutdown handlers
+  process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
 }
 
 module.exports = bot;

@@ -21,29 +21,47 @@ function getRedis() {
       password: config.get('REDIS_PASSWORD') || undefined,
       db: config.getInt('REDIS_DB', 0),
       retryStrategy: (times) => {
+        // In test environment, disable retries to prevent hanging
+        if (process.env.NODE_ENV === 'test') {
+          return null; // Stop retrying
+        }
         const delay = Math.min(times * 50, 2000);
         logger.warn(`Redis retry attempt ${times}, waiting ${delay}ms`);
         return delay;
       },
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: process.env.NODE_ENV === 'test' ? 1 : 3,
+      enableOfflineQueue: false, // Don't queue commands when offline
+      lazyConnect: process.env.NODE_ENV === 'test', // Don't connect immediately in tests
+      connectTimeout: process.env.NODE_ENV === 'test' ? 500 : 10000, // 500ms timeout in tests
+      commandTimeout: process.env.NODE_ENV === 'test' ? 500 : 5000, // 500ms command timeout in tests
     };
 
     redisClient = new Redis(redisConfig);
 
     redisClient.on('connect', () => {
-      logger.info('Redis connected successfully');
+      if (process.env.NODE_ENV !== 'test') {
+        logger.info('Redis connected successfully');
+      }
     });
 
     redisClient.on('error', (err) => {
-      logger.error('Redis connection error', err);
+      // In test environment, suppress error logs to avoid noise
+      if (process.env.NODE_ENV !== 'test') {
+        logger.error('Redis connection error', err);
+      }
     });
 
     redisClient.on('close', () => {
-      logger.warn('Redis connection closed');
+      if (process.env.NODE_ENV !== 'test') {
+        logger.warn('Redis connection closed');
+      }
     });
 
     redisClient.on('reconnecting', () => {
-      logger.info('Redis reconnecting...');
+      // In test environment, don't reconnect to prevent hanging
+      if (process.env.NODE_ENV !== 'test') {
+        logger.info('Redis reconnecting...');
+      }
     });
   }
 
@@ -56,9 +74,77 @@ function getRedis() {
  */
 async function closeRedis() {
   if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
-    logger.info('Redis connection closed');
+    try {
+      // Remove all event listeners first
+      redisClient.removeAllListeners();
+
+      // In test environment, skip graceful shutdown to prevent open handles
+      if (process.env.NODE_ENV === 'test') {
+        try {
+          // Try quick disconnect without timeout
+          redisClient.disconnect(false); // false = don't wait for commands
+        } catch (error) {
+          // Ignore errors
+        }
+        redisClient = null;
+        return;
+      }
+
+      // Try to quit gracefully, fallback to disconnect
+      let timeoutId;
+      let raceTimeoutId;
+      try {
+        const quitPromise = redisClient.quit();
+
+        // Create timeout for race condition
+        const racePromise = new Promise((resolve) => {
+          raceTimeoutId = setTimeout(() => resolve(), 500);
+        });
+
+        // Timeout for force disconnect if quit takes too long
+        timeoutId = setTimeout(() => {
+          try {
+            redisClient.disconnect(false);
+          } catch (error) {
+            // Ignore
+          }
+        }, 500);
+
+        await Promise.race([quitPromise, racePromise]);
+      } catch (error) {
+        // Ignore errors
+      } finally {
+        // Clear all timeouts
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (raceTimeoutId) {
+          clearTimeout(raceTimeoutId);
+        }
+        // Ensure cleanup
+        try {
+          if (redisClient && redisClient.status !== 'end') {
+            redisClient.disconnect(false);
+          }
+        } catch (error) {
+          // Ignore
+        }
+      }
+
+      redisClient = null;
+      logger.info('Redis connection closed');
+    } catch (error) {
+      // Force cleanup on any error
+      try {
+        if (redisClient) {
+          redisClient.disconnect(false);
+        }
+      } catch (disconnectError) {
+        // Ignore
+      }
+      redisClient = null;
+      logger.warn('Redis connection closed with error', error);
+    }
   }
 }
 

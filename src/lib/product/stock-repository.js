@@ -33,15 +33,22 @@ class StockRepository {
    * @param {Stock} stock Stock instance
    * @returns {Promise<Stock>}
    */
-  async upsert(stock) {
+  /**
+   * Upsert stock record
+   * @param {Stock} stock Stock instance
+   * @param {Function} trx Optional transaction function
+   * @returns {Promise<Stock>}
+   */
+  async upsert(stock, trx = null) {
     try {
+      const query = trx || table('stock');
       const existing = await this.findByProductId(stock.product_id);
 
       if (existing) {
-        await table('stock').where('product_id', stock.product_id).update(stock.toDatabase());
+        await query.where('product_id', stock.product_id).update(stock.toDatabase());
         return this.findByProductId(stock.product_id);
       } else {
-        const [stockId] = await table('stock').insert(stock.toDatabase()).returning('id');
+        const [stockId] = await query.insert(stock.toDatabase()).returning('id');
         return Stock.fromDatabase({ ...stock.toDatabase(), id: stockId });
       }
     } catch (error) {
@@ -158,14 +165,17 @@ class StockRepository {
   }
 
   /**
-   * Update stock quantity (admin action)
+   * Update stock quantity (admin action) (T082, T083)
+   * Adds tracking for last_updated_by and update_history
    * @param {number} productId Product ID
    * @param {number} newQuantity New stock quantity
    * @param {number} adminId Admin ID
+   * @param {Function} trx Optional transaction function
    * @returns {Promise<Stock>} Updated stock
    */
-  async updateQuantity(productId, newQuantity, adminId = null) {
+  async updateQuantity(productId, newQuantity, adminId = null, trx = null) {
     try {
+      const query = trx || table('stock');
       const stock = await this.findByProductId(productId);
       if (!stock) {
         // Create new stock record if doesn't exist
@@ -175,32 +185,82 @@ class StockRepository {
           reserved_quantity: 0,
           last_updated_by: adminId,
         });
-        return this.upsert(newStock);
+        const createdStock = await this.upsert(newStock, trx);
+
+        // Initialize update_history for new stock
+        const updateHistory = [
+          {
+            admin_id: adminId,
+            previous_quantity: 0,
+            new_quantity: newQuantity,
+            timestamp: new Date().toISOString(),
+          },
+        ];
+
+        await query.where('product_id', productId).update({
+          update_history: JSON.stringify(updateHistory),
+        });
+
+        createdStock.update_history = updateHistory;
+        return createdStock;
       }
 
+      const previousQuantity = stock.current_quantity;
       stock.current_quantity = newQuantity;
       stock.last_updated_by = adminId;
       stock.last_updated_timestamp = new Date();
+
+      // Update update_history JSON field (T083)
+      let updateHistory = [];
+      try {
+        const existingStock = await (trx || table('stock')).where('product_id', productId).first();
+        if (existingStock && existingStock.update_history) {
+          updateHistory =
+            typeof existingStock.update_history === 'string'
+              ? JSON.parse(existingStock.update_history)
+              : existingStock.update_history;
+        }
+      } catch (error) {
+        // If history doesn't exist or is invalid, start fresh
+        updateHistory = [];
+      }
+
+      // Add new update record to history
+      updateHistory.push({
+        admin_id: adminId,
+        previous_quantity: previousQuantity,
+        new_quantity: newQuantity,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Keep only last 50 updates to prevent unbounded growth
+      if (updateHistory.length > 50) {
+        updateHistory = updateHistory.slice(-50);
+      }
+
       stock.validate();
 
-      await table('stock').where('product_id', productId).update({
+      await query.where('product_id', productId).update({
         current_quantity: stock.current_quantity,
         last_updated_by: stock.last_updated_by,
         last_updated_timestamp: stock.last_updated_timestamp,
+        update_history: JSON.stringify(updateHistory),
       });
 
       // Update product availability_status based on stock
-      await table('products')
-        .where('id', productId)
-        .update({
-          stock_quantity: newQuantity,
-          availability_status: newQuantity > 0 ? 'available' : 'out_of_stock',
-          updated_at: new Date(),
-        });
+      const productQuery = trx || table('products');
+      await productQuery.where('id', productId).update({
+        stock_quantity: newQuantity,
+        availability_status: newQuantity > 0 ? 'available' : 'out_of_stock',
+        updated_at: new Date(),
+      });
+
+      // Update stock model with history
+      stock.update_history = updateHistory;
 
       return stock;
     } catch (error) {
-      logger.error('Error updating stock quantity', error, { productId, newQuantity });
+      logger.error('Error updating stock quantity', error, { productId, newQuantity, adminId });
       throw error;
     }
   }

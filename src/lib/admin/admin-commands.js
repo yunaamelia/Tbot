@@ -8,10 +8,25 @@
 
 const accessControl = require('../security/access-control');
 const stockManager = require('../product/stock-manager');
+const productService = require('../product/product-service');
 const { setStoreStatus } = require('../shared/store-config');
 const { ValidationError } = require('../shared/errors');
 const logger = require('../shared/logger').child('admin-commands');
 const i18n = require('../shared/i18n');
+const commandRegistry = require('./hierarchy/command-registry');
+
+/**
+ * Escape HTML special characters for Telegram HTML parse mode
+ * @param {string} text Text to escape
+ * @returns {string} Escaped text
+ */
+function escapeHTML(text) {
+  if (!text || typeof text !== 'string') {
+    return String(text || '');
+  }
+  // Escape HTML special characters: & < >
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 class AdminCommands {
   /**
@@ -31,10 +46,10 @@ class AdminCommands {
       if (args.length < 3 || args[0] !== 'update') {
         return {
           text:
-            `❌ *Format Perintah Salah*\n\n` +
-            `Format: /stock update <product_id> <quantity>\n\n` +
+            `❌ <b>Format Perintah Salah</b>\n\n` +
+            `Format: /stock update &lt;product_id&gt; &lt;quantity&gt;\n\n` +
             `Contoh: /stock update 1 10`,
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
         };
       }
 
@@ -53,11 +68,17 @@ class AdminCommands {
       const result = await stockManager.updateStock(productId, quantity, admin.id);
 
       // Confirmation message (T108)
+      // Use HTML parse mode which is safer for dynamic content
+      const productName = escapeHTML(result.product.name);
+      const statusText = escapeHTML(
+        result.product.availability_status === 'available' ? 'Tersedia' : 'Habis'
+      );
+
       const message =
-        `✅ *Stok Berhasil Diperbarui*\n\n` +
-        `Produk: *${result.product.name}*\n` +
-        `Stok Baru: *${quantity}* unit\n` +
-        `Status: *${result.product.availability_status === 'available' ? 'Tersedia' : 'Habis'}*\n\n` +
+        `✅ <b>Stok Berhasil Diperbarui</b>\n\n` +
+        `Produk: <b>${productName}</b>\n` +
+        `Stok Baru: <b>${quantity}</b> unit\n` +
+        `Status: <b>${statusText}</b>\n\n` +
         `Stok telah diperbarui dan tersedia untuk pelanggan.`;
 
       logger.info('Stock updated via admin command', {
@@ -68,19 +89,20 @@ class AdminCommands {
 
       return {
         text: message,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       };
     } catch (error) {
       logger.error('Error handling stock command', error, { telegramUserId, commandArgs });
       if (error instanceof ValidationError || error.name === 'UnauthorizedError') {
+        const errorMessage = escapeHTML(error.message);
         return {
-          text: `❌ ${error.message}`,
-          parse_mode: 'Markdown',
+          text: `❌ ${errorMessage}`,
+          parse_mode: 'HTML',
         };
       }
       return {
-        text: i18n.t('error_generic'),
-        parse_mode: 'Markdown',
+        text: escapeHTML(i18n.t('error_generic')),
+        parse_mode: 'HTML',
       };
     }
   }
@@ -162,6 +184,168 @@ class AdminCommands {
       };
     }
   }
+
+  /**
+   * Handle /addproduct command
+   * Format: /addproduct name|description|price|stock|category
+   * @param {number} telegramUserId Telegram user ID
+   * @param {string} commandArgs Command arguments
+   * @returns {Promise<Object>} Response message
+   */
+  async handleAddProductCommand(telegramUserId, commandArgs) {
+    try {
+      // Require stock_manage permission
+      const admin = await accessControl.requirePermission(telegramUserId, 'stock_manage');
+
+      // Parse command arguments (format: name|description|price|stock|category)
+      const args = commandArgs.trim();
+      if (!args) {
+        return {
+          text:
+            `❌ <b>Format Perintah Salah</b>\n\n` +
+            `Format: /addproduct name|description|price|stock|category\n\n` +
+            `Contoh: /addproduct GitHub Copilot|Akses GitHub Copilot Individual|50000|10|GitHub\n\n` +
+            `Catatan:\n` +
+            `- Gunakan | sebagai pemisah\n` +
+            `- Price dalam angka (tanpa titik atau koma)\n` +
+            `- Stock dalam angka\n` +
+            `- Category opsional`,
+          parse_mode: 'HTML',
+        };
+      }
+
+      const parts = args.split('|').map((p) => p.trim());
+      if (parts.length < 4) {
+        return {
+          text:
+            `❌ <b>Format Perintah Salah</b>\n\n` +
+            `Format: /addproduct name|description|price|stock|category\n\n` +
+            `Minimal diperlukan: name|description|price|stock`,
+          parse_mode: 'HTML',
+        };
+      }
+
+      const [name, description, priceStr, stockStr, category] = parts;
+
+      if (!name || name.length === 0) {
+        throw new ValidationError('Nama produk harus diisi');
+      }
+
+      const price = parseFloat(priceStr);
+      if (isNaN(price) || price < 0) {
+        throw new ValidationError('Harga harus berupa angka positif');
+      }
+
+      const stock = parseInt(stockStr, 10);
+      if (isNaN(stock) || stock < 0) {
+        throw new ValidationError('Stok harus berupa angka non-negatif');
+      }
+
+      // Create product
+      const productData = {
+        name: name,
+        description: description || null,
+        price: price,
+        stock_quantity: stock,
+        category: category || null,
+        features: [],
+        media_files: [],
+        availability_status: stock > 0 ? 'available' : 'out_of_stock',
+      };
+
+      const product = await productService.createProduct(productData);
+
+      const productName = escapeHTML(product.name);
+      const message =
+        `✅ <b>Produk Berhasil Ditambahkan</b>\n\n` +
+        `ID: <b>${product.id}</b>\n` +
+        `Nama: <b>${productName}</b>\n` +
+        `Harga: <b>Rp ${price.toLocaleString('id-ID')}</b>\n` +
+        `Stok: <b>${stock}</b> unit\n` +
+        `Status: <b>${product.availability_status === 'available' ? 'Tersedia' : 'Habis'}</b>\n\n` +
+        `Produk telah ditambahkan dan tersedia untuk pelanggan.`;
+
+      logger.info('Product created via admin command', {
+        adminId: admin.id,
+        productId: product.id,
+        productName: product.name,
+      });
+
+      return {
+        text: message,
+        parse_mode: 'HTML',
+      };
+    } catch (error) {
+      logger.error('Error handling addproduct command', error, { telegramUserId, commandArgs });
+      if (error instanceof ValidationError || error.name === 'UnauthorizedError') {
+        const errorMessage = escapeHTML(error.message);
+        return {
+          text: `❌ ${errorMessage}`,
+          parse_mode: 'HTML',
+        };
+      }
+      return {
+        text: escapeHTML(i18n.t('error_generic')),
+        parse_mode: 'HTML',
+      };
+    }
+  }
+  /**
+   * Register all commands in hierarchical structure (T067)
+   * This method should be called during initialization
+   */
+  registerHierarchicalCommands() {
+    // Register admin.product.add command
+    commandRegistry.registerCommand(
+      'admin.product.add',
+      (telegramUserId, args) => this.handleAddProductCommand(telegramUserId, args),
+      {
+        permissions: ['stock_manage'],
+        description: 'Tambah produk baru',
+        usage: '/admin product add name|description|price|stock|category',
+      }
+    );
+
+    // Register admin.stock.update command
+    commandRegistry.registerCommand(
+      'admin.stock.update',
+      (telegramUserId, args) => this.handleStockCommand(telegramUserId, args),
+      {
+        permissions: ['stock_manage'],
+        description: 'Update stok produk',
+        usage: '/admin stock update product_id quantity',
+      }
+    );
+
+    // Register admin.store.open command
+    commandRegistry.registerCommand(
+      'admin.store.open',
+      (telegramUserId) => this.handleOpenCommand(telegramUserId),
+      {
+        permissions: ['store_control'],
+        description: 'Buka toko',
+        usage: '/admin store open',
+      }
+    );
+
+    // Register admin.store.close command
+    commandRegistry.registerCommand(
+      'admin.store.close',
+      (telegramUserId) => this.handleCloseCommand(telegramUserId),
+      {
+        permissions: ['store_control'],
+        description: 'Tutup toko',
+        usage: '/admin store close',
+      }
+    );
+
+    logger.info('Hierarchical commands registered');
+  }
 }
 
-module.exports = new AdminCommands();
+const adminCommandsInstance = new AdminCommands();
+
+// Auto-register hierarchical commands on module load (T067)
+adminCommandsInstance.registerHierarchicalCommands();
+
+module.exports = adminCommandsInstance;

@@ -10,6 +10,8 @@ const orderService = require('./order-service');
 const productService = require('../product/product-service');
 const stockRepository = require('../product/stock-repository');
 const checkoutSession = require('./checkout-session');
+const keyboardBuilder = require('../ui/keyboard-builder');
+const paymentConfig = require('../payment/config/payment-config');
 const { isStoreOpen, getStoreClosedMessage } = require('../shared/store-config');
 const { NotFoundError, ConflictError } = require('../shared/errors');
 const i18n = require('../shared/i18n');
@@ -134,7 +136,7 @@ class CheckoutHandler {
       await checkoutSession.updateStep(userId, CHECKOUT_STEPS.PAYMENT_METHOD);
 
       // Format payment method selection message (T066)
-      const message = this.formatPaymentMethodSelection(session);
+      const message = await this.formatPaymentMethodSelection(session);
 
       logger.info('Payment method selection', { userId, orderId: session.orderId });
 
@@ -152,33 +154,36 @@ class CheckoutHandler {
   /**
    * Format payment method selection message (Step 2)
    * @param {Object} sessionData Session data
-   * @returns {Object} Formatted message with text and inline keyboard
+   * @returns {Promise<Object>} Formatted message with text and inline keyboard
    */
-  formatPaymentMethodSelection(sessionData) {
+  async formatPaymentMethodSelection(sessionData) {
+    // Get available payment methods from config (T052, T053)
+    const methods = await paymentConfig.getAvailableMethods();
+    const enabledMethods = methods.filter((m) => m.enabled);
+
+    if (enabledMethods.length === 0) {
+      throw new ConflictError(
+        'Tidak ada metode pembayaran yang dikonfigurasi. Silakan hubungi admin.'
+      );
+    }
+
     const text =
       `💳 *Pilih Metode Pembayaran*\n\n` +
       `Total pembayaran: *Rp ${sessionData.totalAmount.toLocaleString('id-ID')}*\n\n` +
       `Pilih metode pembayaran yang Anda inginkan:`;
 
-    const keyboard = {
-      inline_keyboard: [
-        [
-          {
-            text: '💳 QRIS Otomatis',
-            callback_data: 'checkout_payment_qris',
-          },
-        ],
-        [
-          {
-            text: '🏦 Transfer Bank Manual',
-            callback_data: 'checkout_payment_manual',
-          },
-        ],
-        [{ text: '◀️ Kembali', callback_data: 'checkout_back_summary' }],
-      ],
-    };
+    // Convert enabled methods to keyboard items (T053)
+    const paymentMethodItems = enabledMethods.map((method) => ({
+      text: `${method.icon} ${method.displayName}`,
+      callback_data: `checkout_payment_${method.type}`,
+    }));
 
-    return { text, reply_markup: keyboard };
+    // Create responsive keyboard with Home/Back navigation (T039, T052)
+    const keyboard = await keyboardBuilder.createKeyboard(paymentMethodItems, {
+      includeNavigation: true,
+    });
+
+    return { text, reply_markup: keyboard.reply_markup };
   }
 
   /**

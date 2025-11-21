@@ -14,13 +14,17 @@ const nodeCron = require('node-cron');
 const TIMEOUT_MINUTES = 15; // EC-016: 15 minutes timeout
 
 class CheckoutTimeoutHandler {
+  constructor() {
+    this.cronTask = null;
+  }
+
   /**
    * Start periodic cleanup of abandoned checkouts (T074)
    * Runs every 5 minutes to check for abandoned sessions
    */
   startCleanupScheduler() {
     // Run cleanup every 5 minutes
-    nodeCron.schedule('*/5 * * * *', async () => {
+    this.cronTask = nodeCron.schedule('*/5 * * * *', async () => {
       try {
         await this.cleanupAbandonedCheckouts();
       } catch (error) {
@@ -29,6 +33,18 @@ class CheckoutTimeoutHandler {
     });
 
     logger.info('Checkout timeout cleanup scheduler started');
+  }
+
+  /**
+   * Stop the cleanup scheduler
+   * @returns {void}
+   */
+  stopCleanupScheduler() {
+    if (this.cronTask) {
+      this.cronTask.stop();
+      this.cronTask = null;
+      logger.info('Checkout timeout cleanup scheduler stopped');
+    }
   }
 
   /**

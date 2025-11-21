@@ -117,6 +117,35 @@ class ProductService {
       throw error;
     }
   }
+
+  /**
+   * Create a new product
+   * @param {Object} productData Product data
+   * @returns {Promise<Product>} Created product
+   */
+  async createProduct(productData) {
+    try {
+      const Product = require('../../models/product');
+      const product = new Product(productData);
+      const createdProduct = await productRepository.create(product);
+
+      // Create stock record
+      const stockRepository = require('./stock-repository');
+      const Stock = require('../../models/stock');
+      const stock = new Stock({
+        product_id: createdProduct.id,
+        current_quantity: productData.stock_quantity || 0,
+        reserved_quantity: 0,
+      });
+      await stockRepository.upsert(stock);
+
+      logger.info('Product created', { productId: createdProduct.id, name: createdProduct.name });
+      return createdProduct;
+    } catch (error) {
+      logger.error('Error creating product', error, { productData });
+      throw error;
+    }
+  }
 }
 
 module.exports = new ProductService();

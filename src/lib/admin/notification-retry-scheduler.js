@@ -11,13 +11,17 @@ const logger = require('../shared/logger').child('notification-retry-scheduler')
 const nodeCron = require('node-cron');
 
 class NotificationRetryScheduler {
+  constructor() {
+    this.cronTask = null;
+  }
+
   /**
    * Start retry scheduler
    * Runs every 5 minutes to retry failed notifications
    */
   startScheduler() {
     // Run retry every 5 minutes
-    nodeCron.schedule('*/5 * * * *', async () => {
+    this.cronTask = nodeCron.schedule('*/5 * * * *', async () => {
       try {
         const retried = await notificationService.retryFailedNotifications(3);
         if (retried > 0) {
@@ -29,6 +33,18 @@ class NotificationRetryScheduler {
     });
 
     logger.info('Notification retry scheduler started');
+  }
+
+  /**
+   * Stop the retry scheduler
+   * @returns {void}
+   */
+  stopScheduler() {
+    if (this.cronTask) {
+      this.cronTask.stop();
+      this.cronTask = null;
+      logger.info('Notification retry scheduler stopped');
+    }
   }
 }
 
