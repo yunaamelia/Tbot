@@ -25,8 +25,18 @@ function getRedis() {
         if (process.env.NODE_ENV === 'test') {
           return null; // Stop retrying
         }
+
+        // Maximum retry attempts: 10 (after 10 attempts, stop retrying)
+        const MAX_RETRY_ATTEMPTS = 10;
+        if (times > MAX_RETRY_ATTEMPTS) {
+          logger.error(
+            `Redis connection failed after ${MAX_RETRY_ATTEMPTS} attempts. Stopping retries. Please check Redis server status.`
+          );
+          return null; // Stop retrying after max attempts
+        }
+
         const delay = Math.min(times * 50, 2000);
-        logger.warn(`Redis retry attempt ${times}, waiting ${delay}ms`);
+        logger.warn(`Redis retry attempt ${times}/${MAX_RETRY_ATTEMPTS}, waiting ${delay}ms`);
         return delay;
       },
       maxRetriesPerRequest: process.env.NODE_ENV === 'test' ? 1 : 3,
