@@ -20,6 +20,7 @@ const adminCommands = require('./lib/admin/admin-commands');
 const commandRouter = require('./lib/admin/hierarchy/command-router');
 const commandHelp = require('./lib/admin/hierarchy/command-help');
 const accessControl = require('./lib/security/access-control');
+const roleFilter = require('./lib/security/role-filter');
 const orderService = require('./lib/order/order-service');
 const faqHandler = require('./lib/customer-service/faq-handler');
 const chatHandler = require('./lib/customer-service/chat-handler');
@@ -296,6 +297,63 @@ bot.on(
   asyncHandler(async (ctx) => {
     try {
       const callbackData = ctx.callbackQuery.data;
+
+      // Handle admin-only callbacks with access denied check (T055, FR-011)
+      // Check if callback is admin-only (starts with 'admin_' or specific admin patterns)
+      const adminCallbackPatterns = [
+        'admin_',
+        'admin_panel',
+        'admin_stock',
+        'admin_product',
+        'admin_order',
+        'payment_verify_',
+        'payment_reject_',
+        'chat_accept_',
+        'chat_reject_',
+      ];
+
+      const isAdminCallback = adminCallbackPatterns.some((pattern) =>
+        callbackData.startsWith(pattern)
+      );
+
+      if (isAdminCallback) {
+        try {
+          const userId = ctx.from.id;
+          // Check if user is admin using role filter (with caching)
+          const userRole = await roleFilter.getUserRole(userId);
+          if (userRole.role !== 'admin') {
+            // Regular user trying to access admin feature - show access denied
+            const accessDeniedMessage =
+              '❌ *Akses Ditolak*\n\nAnda tidak memiliki izin untuk mengakses fitur ini. Fitur ini hanya tersedia untuk administrator.';
+
+            await safeEditMessageText(ctx, accessDeniedMessage, { parse_mode: 'Markdown' });
+            await safeAnswerCallbackQuery(ctx, 'Akses ditolak - Hanya admin', { show_alert: true });
+
+            logger.warn('Regular user attempted to access admin feature', {
+              userId,
+              callbackData,
+              userRole: userRole.role,
+            });
+
+            return; // Stop processing
+          }
+        } catch (roleError) {
+          // Role check failed - use fail-safe: deny access
+          logger.error('Role check failed for admin callback, denying access (fail-safe)', {
+            userId,
+            callbackData,
+            error: roleError.message,
+          });
+
+          const accessDeniedMessage =
+            '❌ *Akses Ditolak*\n\nTidak dapat memverifikasi akses. Fitur ini hanya tersedia untuk administrator.';
+
+          await safeEditMessageText(ctx, accessDeniedMessage, { parse_mode: 'Markdown' });
+          await safeAnswerCallbackQuery(ctx, 'Akses ditolak', { show_alert: true });
+
+          return; // Stop processing
+        }
+      }
 
       // Parse carousel navigation
       const parsed = productCarouselHandler.parseCallbackData(callbackData);

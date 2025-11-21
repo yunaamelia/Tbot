@@ -116,28 +116,28 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T040 [P] [US3] Integration test for admin user seeing additional management buttons in tests/integration/role-based-access.test.js
-- [ ] T041 [P] [US3] Integration test for regular user seeing only user-facing options in tests/integration/role-based-access.test.js
-- [ ] T042 [P] [US3] Integration test for admin-only buttons disabled for regular users in tests/integration/role-based-access.test.js
-- [ ] T043 [P] [US3] Integration test for "Access denied" message when regular user clicks admin button in tests/integration/role-based-access.test.js
-- [ ] T044 [P] [US3] Integration test for role detection fail-safe (defaults to regular user on failure) in tests/integration/role-based-access.test.js
-- [ ] T045 [P] [US3] Unit test for getUserRole() with caching and fail-safe in tests/unit/security/role-filter.test.js
-- [ ] T046 [P] [US3] Unit test for filterMenuItemsByRole() in tests/unit/security/role-filter.test.js
-- [ ] T047 [P] [US3] Unit test for markDisabledButtons() in tests/unit/security/role-filter.test.js
+- [x] T040 [P] [US3] Integration test for admin user seeing additional management buttons in tests/integration/role-based-access.test.js
+- [x] T041 [P] [US3] Integration test for regular user seeing only user-facing options in tests/integration/role-based-access.test.js
+- [x] T042 [P] [US3] Integration test for admin-only buttons disabled for regular users in tests/integration/role-based-access.test.js
+- [x] T043 [P] [US3] Integration test for "Access denied" message when regular user clicks admin button in tests/integration/role-based-access.test.js
+- [x] T044 [P] [US3] Integration test for role detection fail-safe (defaults to regular user on failure) in tests/integration/role-based-access.test.js
+- [x] T045 [P] [US3] Unit test for getUserRole() with caching and fail-safe in tests/unit/security/role-filter.test.js
+- [x] T046 [P] [US3] Unit test for filterMenuItemsByRole() in tests/unit/security/role-filter.test.js
+- [x] T047 [P] [US3] Unit test for markDisabledButtons() in tests/unit/security/role-filter.test.js
 
 ### Implementation for User Story 3
 
-- [ ] T048 [P] [US3] Create role-filter.js with getUserRole() method (cache → database → fail-safe) in src/lib/security/role-filter.js
-- [ ] T049 [P] [US3] Implement Redis caching for role lookups (key: role:user:{telegramUserId}, TTL: 1 hour) in src/lib/security/role-filter.js
-- [ ] T050 [US3] Implement filterMenuItemsByRole() method in src/lib/security/role-filter.js (FR-007, FR-009)
-- [ ] T051 [US3] Implement markDisabledButtons() method for regular users viewing admin buttons in src/lib/security/role-filter.js (FR-010)
-- [ ] T052 [US3] Extend createKeyboard() in src/lib/ui/keyboard-builder.js to support role-based filtering by adding telegramUserId parameter to options
-- [ ] T053 [US3] Add role-based filtering before keyboard layout creation in src/lib/ui/keyboard-builder.js (FR-008)
-- [ ] T054 [US3] Optimize role detection performance with Redis caching to meet <200ms target (FR-022, SC-008) in src/lib/security/role-filter.js
-- [ ] T055 [US3] Implement "Access denied" message handler for admin-only features in src/bot.js (FR-011)
-- [ ] T056 [US3] Add cache invalidation on role changes in src/lib/security/role-filter.js
-- [ ] T057 [US3] Add error handling for role detection failures (fail-safe to regular user) in src/lib/security/role-filter.js
-- [ ] T058 [US3] Add logging for role detection and filtering operations in src/lib/security/role-filter.js
+- [x] T048 [P] [US3] Create role-filter.js with getUserRole() method (cache → database → fail-safe) in src/lib/security/role-filter.js
+- [x] T049 [P] [US3] Implement Redis caching for role lookups (key: role:user:{telegramUserId}, TTL: 1 hour) in src/lib/security/role-filter.js
+- [x] T050 [US3] Implement filterMenuItemsByRole() method in src/lib/security/role-filter.js (FR-007, FR-009)
+- [x] T051 [US3] Implement markDisabledButtons() method for regular users viewing admin buttons in src/lib/security/role-filter.js (FR-010)
+- [x] T052 [US3] Extend createKeyboard() in src/lib/ui/keyboard-builder.js to support role-based filtering by adding telegramUserId parameter to options
+- [x] T053 [US3] Add role-based filtering before keyboard layout creation in src/lib/ui/keyboard-builder.js (FR-008)
+- [x] T054 [US3] Optimize role detection performance with Redis caching to meet <200ms target (FR-022, SC-008) in src/lib/security/role-filter.js
+- [x] T055 [US3] Implement "Access denied" message handler for admin-only features in src/bot.js (FR-011)
+- [x] T056 [US3] Add cache invalidation on role changes in src/lib/security/role-filter.js
+- [x] T057 [US3] Add error handling for role detection failures (fail-safe to regular user) in src/lib/security/role-filter.js
+- [x] T058 [US3] Add logging for role detection and filtering operations in src/lib/security/role-filter.js
 
 **Checkpoint**: At this point, User Story 3 should be fully functional. Admin users see admin buttons, regular users see only user buttons, disabled admin buttons show access denied messages, and role detection works with caching and fail-safe.
 

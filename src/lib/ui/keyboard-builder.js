@@ -9,6 +9,7 @@
 const { Markup } = require('telegraf');
 const { balanceLayout } = require('./layout-balancer');
 const { createNavigationRow } = require('./navigation-handler');
+const roleFilter = require('../security/role-filter');
 const redisClient = require('../shared/redis-client');
 const { ValidationError } = require('../shared/errors');
 const logger = require('../shared/logger').child('keyboard-builder');
@@ -80,6 +81,7 @@ function validateButtonLabel(label) {
  * @param {boolean} options.includeNavigation - Include Home/Back buttons (default: true)
  * @param {number} options.maxItemsPerRow - Maximum items per row (default: 3)
  * @param {string} options.pattern - Override pattern (optional)
+ * @param {number} options.telegramUserId - Telegram user ID for role-based filtering (optional, T052)
  * @returns {Object} Telegraf inline keyboard markup
  */
 async function createKeyboard(items, options = {}) {
@@ -95,10 +97,38 @@ async function createKeyboard(items, options = {}) {
       options,
     });
 
-    const { includeNavigation = true, maxItemsPerRow = MAX_ITEMS_PER_ROW } = options;
+    const {
+      includeNavigation = true,
+      maxItemsPerRow = MAX_ITEMS_PER_ROW,
+      telegramUserId,
+    } = options;
+
+    // Role-based filtering (T052, T053, FR-008): Filter items by user role before keyboard creation
+    let filteredItems = items;
+    if (telegramUserId) {
+      try {
+        const userRole = await roleFilter.getUserRole(telegramUserId);
+        filteredItems = roleFilter.filterMenuItemsByRole(items, userRole.role);
+
+        logger.debug('Menu items filtered by role', {
+          telegramUserId,
+          originalCount: items.length,
+          filteredCount: filteredItems.length,
+          userRole: userRole.role,
+          source: userRole.source,
+        });
+      } catch (roleError) {
+        // Role filtering failed - use fail-safe: filter out admin-only items
+        logger.warn('Role filtering failed, using fail-safe', {
+          telegramUserId,
+          error: roleError.message,
+        });
+        filteredItems = roleFilter.filterMenuItemsByRole(items, 'regular'); // Fail-safe
+      }
+    }
 
     // Handle empty menu state (0 items) - T033: Show Home and Help buttons (FR-003, FR-005)
-    if (items.length === 0) {
+    if (filteredItems.length === 0) {
       logger.info('Empty menu state - showing Home and Help buttons');
       const { isMainMenu = false } = options;
       const navButtons = createNavigationRow({ isMainMenu });
@@ -108,40 +138,45 @@ async function createKeyboard(items, options = {}) {
     }
 
     // Validate non-empty items array (T025)
-    validateMenuItems(items);
+    validateMenuItems(filteredItems);
 
     // Handle pagination for >9 items (T022, FR-002: only show at 10+ items, not at exactly 9)
-    if (items.length > MAX_ITEMS_PER_SCREEN) {
-      logger.info('Menu exceeds max items, implementing pagination', { totalItems: items.length });
-      return createPaginatedKeyboard(items, options);
+    if (filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+      logger.info('Menu exceeds max items, implementing pagination', {
+        totalItems: filteredItems.length,
+      });
+      return createPaginatedKeyboard(filteredItems, options);
     }
 
     // Try to get from cache (async, but we'll handle it gracefully)
-    const cacheKey = `menu:layout:${items.length}:${JSON.stringify(items.map((i) => i.callback_data))}`;
+    // Include role info in cache key if filtering is enabled
+    const cacheKey = telegramUserId
+      ? `menu:layout:${filteredItems.length}:${telegramUserId}:${JSON.stringify(filteredItems.map((i) => i.callback_data))}`
+      : `menu:layout:${filteredItems.length}:${JSON.stringify(filteredItems.map((i) => i.callback_data))}`;
     const cached = await getCachedKeyboard(cacheKey);
     if (cached) {
       logger.debug('Keyboard layout retrieved from cache', { cacheKey });
       return cached;
     }
 
-    // Determine layout pattern based on item count
+    // Determine layout pattern based on item count (using filtered items)
     let rows = [];
 
-    if (items.length === 9) {
+    if (filteredItems.length === 9) {
       // 3x3x2 pattern: 3 rows of 3, then nav row
-      rows = [items.slice(0, 3), items.slice(3, 6), items.slice(6, 9)];
-    } else if (items.length === 6) {
+      rows = [filteredItems.slice(0, 3), filteredItems.slice(3, 6), filteredItems.slice(6, 9)];
+    } else if (filteredItems.length === 6) {
       // 3x2x2 pattern: 3 rows of 2, then nav row
-      rows = [items.slice(0, 2), items.slice(2, 4), items.slice(4, 6)];
-    } else if (items.length === 4) {
+      rows = [filteredItems.slice(0, 2), filteredItems.slice(2, 4), filteredItems.slice(4, 6)];
+    } else if (filteredItems.length === 4) {
       // 3x2x1 pattern: 2 rows of 2, then nav row
-      rows = [items.slice(0, 2), items.slice(2, 4)];
-    } else if (items.length === 2) {
+      rows = [filteredItems.slice(0, 2), filteredItems.slice(2, 4)];
+    } else if (filteredItems.length === 2) {
       // 3x1x1 pattern: 1 row of 2, then nav row
-      rows = [items];
+      rows = [filteredItems];
     } else {
       // Auto-balance for other counts (e.g., 7 items)
-      rows = balanceLayout(items, maxItemsPerRow);
+      rows = balanceLayout(filteredItems, maxItemsPerRow);
     }
 
     // Convert items to Markup buttons with label truncation (T020, T021, T024)
@@ -176,13 +211,16 @@ async function createKeyboard(items, options = {}) {
     cacheKeyboard(cacheKey, keyboard);
 
     // Log keyboard generation details (T026)
-    const layoutPattern = `${items.length} items → ${rows.length - (includeNavigation ? 1 : 0)} rows`;
+    const layoutPattern = `${filteredItems.length} items → ${rows.length - (includeNavigation ? 1 : 0)} rows`;
     logger.info('Keyboard created', {
-      itemCount: items.length,
+      originalItemCount: items.length,
+      filteredItemCount: filteredItems.length,
+      itemCount: filteredItems.length,
       rowCount: rows.length,
       itemRowCount: rows.length - (includeNavigation ? 1 : 0),
       layoutPattern,
       includeNavigation,
+      roleFiltered: !!telegramUserId,
     });
 
     return keyboard;
@@ -226,14 +264,29 @@ function validateMenuItems(items) {
  * @param {number} options.page - Current page (default: 0)
  * @returns {Object} Paginated keyboard
  */
-function createPaginatedKeyboard(items, options = {}) {
-  const { page = 0, includeNavigation = true } = options;
+async function createPaginatedKeyboard(items, options = {}) {
+  const { page = 0, includeNavigation = true, telegramUserId } = options;
+
+  // Role-based filtering for pagination (T052, T053)
+  let filteredItems = items;
+  if (telegramUserId) {
+    try {
+      const userRole = await roleFilter.getUserRole(telegramUserId);
+      filteredItems = roleFilter.filterMenuItemsByRole(items, userRole.role);
+    } catch (roleError) {
+      logger.warn('Role filtering failed in pagination, using fail-safe', {
+        telegramUserId,
+        error: roleError.message,
+      });
+      filteredItems = roleFilter.filterMenuItemsByRole(items, 'regular'); // Fail-safe
+    }
+  }
   const itemsPerPage = MAX_ITEMS_PER_SCREEN;
-  const totalPages = Math.ceil(items.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const startIndex = page * itemsPerPage;
 
   // Strictly limit to MAX_ITEMS_PER_SCREEN items per page
-  const pageItems = items.slice(startIndex, startIndex + itemsPerPage);
+  const pageItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
 
   // Create keyboard for current page - balanceLayout will distribute these items
   const balancedRows = balanceLayout(pageItems, MAX_ITEMS_PER_ROW);
