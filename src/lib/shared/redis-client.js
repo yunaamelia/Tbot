@@ -78,44 +78,72 @@ async function closeRedis() {
       // Remove all event listeners first
       redisClient.removeAllListeners();
 
+      // In test environment, skip graceful shutdown to prevent open handles
+      if (process.env.NODE_ENV === 'test') {
+        try {
+          // Try quick disconnect without timeout
+          redisClient.disconnect(false); // false = don't wait for commands
+        } catch (error) {
+          // Ignore errors
+        }
+        redisClient = null;
+        return;
+      }
+
       // Try to quit gracefully, fallback to disconnect
       let timeoutId;
+      let raceTimeoutId;
       try {
-        await Promise.race([
-          redisClient.quit(),
-          new Promise((resolve) => {
-            timeoutId = setTimeout(() => resolve(), 1000);
-          }),
-        ]);
-        if (timeoutId) clearTimeout(timeoutId);
+        const quitPromise = redisClient.quit();
+
+        // Create timeout for race condition
+        const racePromise = new Promise((resolve) => {
+          raceTimeoutId = setTimeout(() => resolve(), 500);
+        });
+
+        // Timeout for force disconnect if quit takes too long
+        timeoutId = setTimeout(() => {
+          try {
+            redisClient.disconnect(false);
+          } catch (error) {
+            // Ignore
+          }
+        }, 500);
+
+        await Promise.race([quitPromise, racePromise]);
       } catch (error) {
-        if (timeoutId) clearTimeout(timeoutId);
-        let disconnectTimeoutId;
+        // Ignore errors
+      } finally {
+        // Clear all timeouts
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (raceTimeoutId) {
+          clearTimeout(raceTimeoutId);
+        }
+        // Ensure cleanup
         try {
-          await Promise.race([
-            redisClient.disconnect(),
-            new Promise((resolve) => {
-              disconnectTimeoutId = setTimeout(() => resolve(), 500);
-            }),
-          ]);
-          if (disconnectTimeoutId) clearTimeout(disconnectTimeoutId);
-        } catch (disconnectError) {
-          if (disconnectTimeoutId) clearTimeout(disconnectTimeoutId);
-          // Force cleanup if both fail
-          redisClient = null;
+          if (redisClient && redisClient.status !== 'end') {
+            redisClient.disconnect(false);
+          }
+        } catch (error) {
+          // Ignore
         }
       }
 
       redisClient = null;
-      if (process.env.NODE_ENV !== 'test') {
-        logger.info('Redis connection closed');
-      }
+      logger.info('Redis connection closed');
     } catch (error) {
       // Force cleanup on any error
-      redisClient = null;
-      if (process.env.NODE_ENV !== 'test') {
-        logger.warn('Redis connection closed with error', error);
+      try {
+        if (redisClient) {
+          redisClient.disconnect(false);
+        }
+      } catch (disconnectError) {
+        // Ignore
       }
+      redisClient = null;
+      logger.warn('Redis connection closed with error', error);
     }
   }
 }

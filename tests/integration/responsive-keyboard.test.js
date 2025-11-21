@@ -14,14 +14,12 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
   afterAll(async () => {
     // Close Redis connection to prevent Jest from hanging
     try {
-      await Promise.race([
-        redisClient.closeRedis(),
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ]);
+      // Call closeRedis directly - it handles test environment cleanup
+      await redisClient.closeRedis();
     } catch (error) {
       // Ignore cleanup errors
     }
-  }, 2000);
+  }, 1000);
   describe('Given a menu with different numbers of items', () => {
     test('When menu has 9 items, Then buttons are arranged in 3x3x2 pattern (3 rows of 3, then 1 row of 2 with Home/Back)', async () => {
       const items = Array.from({ length: 9 }, (_, i) => ({
