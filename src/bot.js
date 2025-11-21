@@ -112,6 +112,21 @@ bot.command(
   })
 );
 
+// /addproduct command handler
+bot.command(
+  'addproduct',
+  asyncHandler(async (ctx) => {
+    try {
+      const commandArgs = ctx.message.text.replace('/addproduct', '').trim();
+      const response = await adminCommands.handleAddProductCommand(ctx.from.id, commandArgs);
+      await ctx.reply(response.text, { parse_mode: response.parse_mode });
+    } catch (error) {
+      logger.error('Error handling /addproduct command', error);
+      await ctx.reply(i18n.t('error_generic'));
+    }
+  })
+);
+
 /**
  * /start command handler
  * Shows first product card or empty catalog message

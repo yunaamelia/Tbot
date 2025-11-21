@@ -28,14 +28,22 @@ npm install
 # Setup Husky git hooks
 npm run prepare
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your configuration
+# Automatic setup (recommended for first-time setup)
+# This will create .env from env.example and generate secrets automatically
+npm run setup
 
-# Generate secure ENCRYPTION_KEY (required for credential encryption)
-node scripts/generate-encryption-key.js
+# Or manual setup:
+# 1. Copy environment file
+cp env.example .env
 
-# Setup database
+# 2. Generate secure ENCRYPTION_KEY and JWT_SECRET
+npm run generate:secrets
+# Or generate only ENCRYPTION_KEY:
+# npm run generate:encryption-key
+
+# 3. Edit .env with your configuration (TELEGRAM_BOT_TOKEN, database, etc.)
+
+# 4. Setup database
 npm run migrate
 npm run seed
 
@@ -101,6 +109,7 @@ tests/
 ## Constitution Compliance
 
 This project follows the Storebot Constitution v1.1.0:
+
 - **Article I**: Library-First Principle
 - **Article III**: Test-First Imperative
 - **Article VIII**: Anti-Abstraction (direct Telegram API)

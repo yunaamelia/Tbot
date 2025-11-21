@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2025-11-19
 
 ## Active Technologies
+- Node.js 20.0.0+ (ES2022) (002-friday-enhancement)
 
 - Node.js LTS 20.x+ (see research.md for rationale) + Telegraf.js (Telegram bot), Knex.js (database abstraction), Duitku SDK (QRIS payment), Express.js (webhook server), ioredis (Redis client), Jest (testing) (001-premium-store-bot)
 
@@ -22,6 +23,7 @@ tests/
 Node.js LTS 20.x+ (see research.md for rationale): Follow standard conventions
 
 ## Recent Changes
+- 002-friday-enhancement: Added Node.js 20.0.0+ (ES2022)
 
 - 001-premium-store-bot: Added Node.js LTS 20.x+ (see research.md for rationale) + Telegraf.js (Telegram bot), Knex.js (database abstraction), Duitku SDK (QRIS payment), Express.js (webhook server), ioredis (Redis client), Jest (testing)
 

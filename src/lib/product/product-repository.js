@@ -190,6 +190,29 @@ class ProductRepository {
       throw error;
     }
   }
+
+  /**
+   * Create a new product
+   * @param {Product} product Product instance
+   * @returns {Promise<Product>} Created product
+   */
+  async create(product) {
+    try {
+      const productData = product.toDatabase();
+      delete productData.id; // Remove ID for insert
+
+      const [productId] = await table('products').insert(productData).returning('id');
+
+      // Invalidate cache
+      await this.invalidateAllCache();
+
+      // Return created product
+      return await this.findById(productId.id || productId);
+    } catch (error) {
+      logger.error('Error creating product', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new ProductRepository();
