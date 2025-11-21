@@ -15,6 +15,7 @@ jest.mock('../../../src/lib/shared/redis-client', () => {
     get: jest.fn(),
     set: jest.fn(),
     del: jest.fn(),
+    status: 'ready', // Mock Redis status as 'ready' for tests
   };
 
   return {

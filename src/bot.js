@@ -57,6 +57,24 @@ async function safeEditMessageText(ctx, text, options = {}) {
 }
 
 /**
+ * Helper function to safely edit message reply markup (handles "message is not modified" error)
+ * @param {Context} ctx Telegraf context
+ * @param {Object} replyMarkup Reply markup object
+ * @returns {Promise<void>}
+ */
+async function safeEditMessageReplyMarkup(ctx, replyMarkup) {
+  try {
+    await ctx.editMessageReplyMarkup(replyMarkup);
+  } catch (editError) {
+    // Ignore "message is not modified" error (Telegram API limitation)
+    if (!editError.message || !editError.message.includes('message is not modified')) {
+      logger.debug('Error editing message reply markup', { error: editError.message });
+      // Don't throw - non-critical error
+    }
+  }
+}
+
+/**
  * Helper function to safely answer callback query
  * @param {Context} ctx Telegraf context
  * @param {string} text Optional text to show
@@ -86,16 +104,61 @@ bot.command(
       const path = parts.length > 0 ? `admin ${parts.join(' ')}` : 'admin';
       const args = parts.length > 1 ? parts.slice(1).join(' ') : '';
 
+      // If just /admin without arguments, show menu with keyboard
+      if (parts.length === 0) {
+        const help = await commandHelp.getHelp('admin', ctx.from.id);
+        const helpMessage = commandHelp.formatHelpMessage(help);
+        const keyboard = await commandHelp.createAdminKeyboard('admin', ctx.from.id);
+
+        await ctx.reply(helpMessage, {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard.reply_markup,
+        });
+        return;
+      }
+
       // Route command through hierarchical system
       const result = await commandRouter.routeCommand(path, ctx.from.id, args);
 
       if (result.success && result.handler) {
         const response = await result.handler(ctx.from.id, args);
-        await ctx.reply(response.text, {
-          parse_mode: response.parse_mode || 'Markdown',
-        });
+
+        // Check if response already has reply_markup (e.g., from wizard)
+        const hasReplyMarkup =
+          response.reply_markup &&
+          (response.reply_markup.inline_keyboard || response.reply_markup.keyboard);
+
+        // If response has its own keyboard (like wizard), use it
+        if (hasReplyMarkup) {
+          await ctx.reply(response.text, {
+            parse_mode: response.parse_mode || 'HTML',
+            reply_markup: response.reply_markup,
+          });
+          return;
+        }
+
+        // Check if response needs keyboard (for better UX)
+        const needsKeyboard =
+          response.text &&
+          (response.text.includes('Format') ||
+            response.text.includes('format') ||
+            response.text.includes('Usage') ||
+            response.text.includes('Contoh:'));
+
+        if (needsKeyboard) {
+          // Show response with keyboard for easy navigation
+          const keyboard = await commandHelp.createAdminKeyboard('admin', ctx.from.id);
+          await ctx.reply(response.text, {
+            parse_mode: response.parse_mode || 'HTML',
+            reply_markup: keyboard.reply_markup,
+          });
+        } else {
+          await ctx.reply(response.text, {
+            parse_mode: response.parse_mode || 'Markdown',
+          });
+        }
       } else {
-        // Command not found or error - show error with suggestions
+        // Command not found or error - show error with suggestions and keyboard
         let errorMessage = `❌ ${result.error || 'Perintah tidak ditemukan.'}\n\n`;
 
         if (result.suggestions && result.suggestions.length > 0) {
@@ -104,17 +167,76 @@ bot.command(
             const displayPath = suggestion.replace(/\./g, ' ');
             errorMessage += `• /${displayPath}\n`;
           });
-        } else {
-          // Show help for admin if no suggestions
-          const help = await commandRouter.getHelp('admin', ctx.from.id);
-          errorMessage += commandHelp.formatHelpMessage(help);
+          errorMessage += '\n';
         }
 
-        await ctx.reply(errorMessage, { parse_mode: 'Markdown' });
+        // Always show help and keyboard for better UX
+        const help = await commandHelp.getHelp('admin', ctx.from.id);
+        errorMessage += commandHelp.formatHelpMessage(help);
+        const keyboard = await commandHelp.createAdminKeyboard('admin', ctx.from.id);
+
+        await ctx.reply(errorMessage, {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard.reply_markup,
+        });
       }
     } catch (error) {
       logger.error('Error handling /admin command', error);
-      await ctx.reply(i18n.t('error_generic'));
+
+      // Check if error is a FetchError (Telegram API connection error)
+      const isFetchError =
+        error.name === 'FetchError' ||
+        (error.message &&
+          error.message.includes('request to') &&
+          error.message.includes('telegram'));
+      const isConnectionError =
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ENOTFOUND' ||
+        error.message?.includes('ECONNREFUSED');
+
+      // Show user-friendly error message
+      let errorMessage;
+      if (isFetchError || isConnectionError) {
+        errorMessage =
+          `⚠️ <b>Masalah Koneksi</b>\n\n` +
+          `Tidak dapat terhubung ke Telegram API saat ini.\n` +
+          `Ini bisa disebabkan oleh:\n` +
+          `• Masalah jaringan/koneksi internet\n` +
+          `• Telegram API sedang sibuk\n\n` +
+          `Silakan coba lagi dalam beberapa saat.`;
+      } else {
+        errorMessage = error.message
+          ? `❌ ${error.message}\n\nGunakan /admin untuk melihat menu admin.`
+          : `❌ ${i18n.t('error_generic')}\n\nGunakan /admin untuk melihat menu admin.`;
+      }
+
+      // Try to send error message, but don't fail if it also fails
+      try {
+        // Try with keyboard first
+        const keyboard = await commandHelp.createAdminKeyboard('admin', ctx.from.id);
+        await ctx.reply(errorMessage, {
+          parse_mode: 'HTML',
+          reply_markup: keyboard.reply_markup,
+        });
+      } catch (replyError) {
+        // If reply also fails (e.g., connection error), log it but don't throw
+        logger.error('Failed to send error message to user', replyError, {
+          originalError: error.message,
+          userId: ctx.from?.id,
+        });
+
+        // Don't try to send message again if it's a connection error
+        // The user will see the error in logs, and we don't want to spam
+        if (!isFetchError && !isConnectionError) {
+          // Only retry without keyboard for non-connection errors
+          try {
+            await ctx.reply(errorMessage, { parse_mode: 'HTML' });
+          } catch (fallbackError) {
+            logger.error('Failed to send fallback error message', fallbackError);
+          }
+        }
+      }
     }
   })
 );
@@ -344,8 +466,8 @@ bot.on(
 
       if (isAdminCallback) {
         try {
-          const userId = ctx.from.id;
           // Check if user is admin using role filter (with caching)
+          // Note: userId is already declared at line 320
           const userRole = await roleFilter.getUserRole(userId);
           if (userRole.role !== 'admin') {
             // Regular user trying to access admin feature - show access denied
@@ -427,7 +549,7 @@ bot.on(
       // Handle product details view (T042, T043)
       const productDetailsData = productDetailsHandler.parseCallbackData(callbackData);
       if (productDetailsData) {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         // Track browsing behavior for personalization (T145)
         await personalizationEngine.updateBrowsingBehavior(userId, productDetailsData.productId);
 
@@ -501,7 +623,7 @@ bot.on(
       // Handle checkout callbacks (T064, T065, T066)
       if (callbackData.startsWith('product_buy_')) {
         const productId = parseInt(callbackData.replace('product_buy_', ''), 10);
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
 
         // Get or create customer (for future use)
         await customerService.getOrCreateCustomer(userId, {
@@ -523,7 +645,7 @@ bot.on(
 
       // Handle checkout confirmation
       if (callbackData === 'checkout_confirm') {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         // Get or create customer (for future use)
         await customerService.getOrCreateCustomer(userId, {
           name: ctx.from.first_name,
@@ -544,7 +666,7 @@ bot.on(
 
       // Handle checkout cancel
       if (callbackData === 'checkout_cancel') {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         await checkoutHandler.cancelCheckout(userId);
         await safeEditMessageText(ctx, i18n.t('checkout_cancelled'));
         await safeAnswerCallbackQuery(ctx);
@@ -553,7 +675,7 @@ bot.on(
 
       // Handle payment method selection
       if (callbackData === 'checkout_payment_qris' || callbackData === 'checkout_payment_manual') {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         const customer = await customerService.getOrCreateCustomer(userId, {
           name: ctx.from.first_name,
           username: ctx.from.username,
@@ -628,7 +750,7 @@ bot.on(
 
       // Handle back to order summary
       if (callbackData === 'checkout_back_summary') {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         const session = await checkoutHandler.getCurrentSession(userId);
         if (session) {
           const summaryMessage = checkoutHandler.formatOrderSummary(session);
@@ -656,7 +778,7 @@ bot.on(
 
       // Handle chat callbacks (T140)
       if (callbackData.startsWith('chat_')) {
-        const userId = ctx.from.id;
+        // Note: userId is already declared at line 320
         if (callbackData === 'chat_start') {
           const chatSession = await chatHandler.startChat(userId);
           await safeEditMessageText(ctx, chatSession.message, { parse_mode: 'Markdown' });
@@ -708,8 +830,7 @@ bot.on(
       // Handle pagination navigation (T089, T090, T094, FR-002, FR-016, FR-018)
       if (callbackData.startsWith('nav_page_')) {
         try {
-          const userId = ctx.from.id;
-
+          // Note: userId is already declared at line 320
           // Parse page number from callback data
           const pageMatch = callbackData.match(/nav_page_(\d+)/);
           if (pageMatch) {
@@ -814,7 +935,7 @@ bot.on(
       }
 
       // Handle navigation buttons (T034, T035, T036, T038, T039, FR-003, FR-004, FR-006)
-      const userId = ctx.from.id;
+      // Note: userId is already declared at line 320
 
       // Home button navigation (T035, FR-004)
       if (callbackData === 'nav_home') {
@@ -1032,6 +1153,379 @@ bot.on(
         } catch (error) {
           logger.error('Error handling Back button', error, { userId }); // T038: Error handling
           await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat kembali');
+          return;
+        }
+      }
+
+      // Handle admin menu navigation (admin_menu_*) - MUST BE BEFORE admin_payment_* handlers
+      if (callbackData.startsWith('admin_menu_')) {
+        // Note: userId is already declared at line 320
+        const menuPath = callbackData.replace('admin_menu_', '');
+
+        try {
+          if (menuPath === 'back') {
+            // Back to main admin menu
+            const help = await commandHelp.getHelp('admin', userId);
+            const helpMessage = commandHelp.formatHelpMessage(help);
+            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+            await safeEditMessageText(ctx, helpMessage, {
+              parse_mode: 'Markdown',
+              reply_markup: keyboard.reply_markup,
+            });
+            await safeAnswerCallbackQuery(ctx);
+            return;
+          }
+
+          // Show submenu for category (e.g., product, stock, store)
+          const categoryPath = `admin.${menuPath}`;
+          const help = await commandHelp.getHelp(categoryPath, userId);
+          const helpMessage = commandHelp.formatHelpMessage(help);
+          const keyboard = await commandHelp.createAdminKeyboard(categoryPath, userId);
+
+          await safeEditMessageText(ctx, helpMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          });
+          await safeAnswerCallbackQuery(ctx);
+          return;
+        } catch (error) {
+          logger.error('Error handling admin menu navigation', error, { userId, menuPath });
+          await safeAnswerCallbackQuery(ctx, '❌ Error loading menu');
+          return;
+        }
+      }
+
+      // Handle admin command execution (admin_cmd_*) - MUST BE BEFORE admin_payment_* handlers
+      if (callbackData.startsWith('admin_cmd_')) {
+        // Note: userId is already declared at line 320
+        const commandPath = callbackData.replace('admin_cmd_', '').replace(/_/g, '.'); // Convert admin_product_add -> admin.product.add
+
+        try {
+          // Check if button is already processing
+          const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
+          if (isProcessing) {
+            await safeAnswerCallbackQuery(ctx, '⏳ Command sedang diproses, harap tunggu...');
+            return;
+          }
+
+          // Set button to processing state with loading indicator
+          await buttonStateManager.disableButton(callbackData, userId, {
+            loadingText: '⏳ Memproses...',
+            timeoutSeconds: 60,
+          });
+
+          // Update keyboard to show loading state
+          const loadingKeyboard = await commandHelp.createAdminKeyboard('admin', userId);
+          try {
+            await safeEditMessageReplyMarkup(ctx, loadingKeyboard.reply_markup);
+          } catch (editError) {
+            // Ignore edit errors (message might be identical)
+            logger.debug('Could not update keyboard with loading state', {
+              error: editError.message,
+            });
+          }
+
+          // Route command through hierarchical system (with empty args for keyboard-triggered commands)
+          const result = await commandRouter.routeCommand(commandPath, userId, '');
+
+          if (result.success && result.handler) {
+            const response = await result.handler(userId, '');
+
+            // Re-enable button with success indicator
+            await buttonStateManager.enableButton(callbackData, userId, {
+              success: true,
+              resultText: 'Berhasil',
+            });
+
+            // Check if response already has reply_markup (e.g., from wizard)
+            const hasReplyMarkup =
+              response.reply_markup &&
+              (response.reply_markup.inline_keyboard || response.reply_markup.keyboard);
+
+            // If response has its own keyboard (like wizard), use it
+            if (hasReplyMarkup) {
+              await safeEditMessageText(ctx, response.text, {
+                parse_mode: response.parse_mode || 'HTML',
+                reply_markup: response.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '✅ Wizard dimulai');
+              return;
+            }
+
+            // For commands that need user input (like product add, stock update), show usage instructions
+            // Check if response contains format error or usage instructions
+            const needsInput =
+              response.text &&
+              (response.text.includes('Format') ||
+                response.text.includes('format') ||
+                response.text.includes('Usage') ||
+                response.text.includes('Contoh:'));
+
+            // Refresh keyboard to show updated states
+            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+            if (needsInput) {
+              // Show instruction with keyboard for easy navigation back
+              await safeEditMessageText(ctx, response.text, {
+                parse_mode: response.parse_mode || 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '💡 Masukkan data sesuai format di atas');
+            } else if (response.text && response.text.includes('✅')) {
+              // Success message - show with refreshed keyboard
+              await safeEditMessageText(ctx, response.text, {
+                parse_mode: response.parse_mode || 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '✅ Berhasil');
+            } else {
+              // Other responses (errors, etc.)
+              await safeEditMessageText(ctx, response.text, {
+                parse_mode: response.parse_mode || 'Markdown',
+                reply_markup: keyboard.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '✅ Command executed');
+            }
+            return;
+          } else {
+            // Re-enable button with error indicator
+            await buttonStateManager.enableButton(callbackData, userId, {
+              success: false,
+              resultText: 'Gagal',
+            });
+
+            // Command not found or error
+            const errorMessage = `❌ ${result.error || 'Perintah tidak ditemukan.'}\n\n`;
+            const help = await commandHelp.getHelp('admin', userId);
+            const helpText = commandHelp.formatHelpMessage(help);
+            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+            await safeEditMessageText(ctx, errorMessage + helpText, {
+              parse_mode: 'Markdown',
+              reply_markup: keyboard.reply_markup,
+            });
+            await safeAnswerCallbackQuery(ctx, '❌ Command error');
+            return;
+          }
+        } catch (error) {
+          logger.error('Error handling admin command', error, { userId, commandPath });
+
+          // Re-enable button with error indicator
+          await buttonStateManager
+            .enableButton(callbackData, userId, {
+              success: false,
+              resultText: 'Error',
+            })
+            .catch((enableError) => {
+              // Ignore errors when re-enabling button
+              logger.debug('Could not re-enable button after error', {
+                error: enableError.message,
+              });
+            });
+
+          // Show error with helpful message and keyboard
+          const errorMessage = error.message
+            ? `❌ ${error.message}\n\nGunakan /admin untuk melihat menu admin.`
+            : '❌ Terjadi kesalahan saat menjalankan perintah.\n\nGunakan /admin untuk melihat menu admin.';
+
+          const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+          await safeEditMessageText(ctx, errorMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          });
+          await safeAnswerCallbackQuery(ctx, '❌ Error executing command');
+          return;
+        }
+      }
+
+      // Handle admin refresh button (admin_refresh_*)
+      if (callbackData.startsWith('admin_refresh_')) {
+        // Note: userId is already declared at line 320
+        try {
+          const path = callbackData.replace('admin_refresh_', '');
+          const targetPath = path === 'main' ? 'admin' : path;
+
+          const help = await commandHelp.getHelp(targetPath, userId);
+          const helpMessage = commandHelp.formatHelpMessage(help);
+          const keyboard = await commandHelp.createAdminKeyboard(targetPath, userId);
+
+          await safeEditMessageText(ctx, helpMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          });
+          await safeAnswerCallbackQuery(ctx, '🔄 Menu diperbarui');
+          return;
+        } catch (error) {
+          logger.error('Error handling admin refresh', error, { userId });
+          await safeAnswerCallbackQuery(ctx, '❌ Error refreshing menu');
+          return;
+        }
+      }
+
+      // Handle admin status button (admin_status_store)
+      if (callbackData === 'admin_status_store') {
+        // Note: userId is already declared at line 320
+        try {
+          const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
+          const storeOpen = await isStoreOpen();
+          const statusMessage = storeOpen
+            ? '🟢 *Status Toko: Terbuka*\n\nToko saat ini terbuka dan siap melayani pelanggan.'
+            : `🔴 *Status Toko: Tertutup*\n\n${getStoreClosedMessage()}`;
+
+          const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+          await safeEditMessageText(ctx, statusMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          });
+          await safeAnswerCallbackQuery(ctx);
+          return;
+        } catch (error) {
+          logger.error('Error handling admin status', error, { userId });
+          await safeAnswerCallbackQuery(ctx, '❌ Error loading status');
+          return;
+        }
+      }
+
+      // Handle admin help button
+      if (callbackData === 'admin_help') {
+        // Note: userId is already declared at line 320
+        try {
+          const help = await commandHelp.getHelp('admin', userId);
+          const helpMessage = commandHelp.formatHelpMessage(help);
+          const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+          await safeEditMessageText(ctx, helpMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          });
+          await safeAnswerCallbackQuery(ctx);
+          return;
+        } catch (error) {
+          logger.error('Error handling admin help', error, { userId });
+          await safeAnswerCallbackQuery(ctx, '❌ Error loading help');
+          return;
+        }
+      }
+
+      // Handle wizard navigation (wizard_back_*, wizard_skip_*, wizard_cancel, wizard_confirm_create)
+      if (callbackData.startsWith('wizard_')) {
+        // Note: userId is already declared at line 320
+        try {
+          const wizardManager = require('./lib/admin/wizard/product-add-wizard');
+          const wizardHandler = require('./lib/admin/wizard/product-add-wizard-handler');
+          const productService = require('./lib/product/product-service');
+          const accessControl = require('./lib/security/access-control');
+
+          if (callbackData === 'wizard_cancel') {
+            // Cancel wizard
+            await wizardManager.endWizard(userId);
+            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+            await safeEditMessageText(
+              ctx,
+              '❌ <b>Wizard Dibatalkan</b>\n\nProses tambah produk telah dibatalkan.',
+              {
+                parse_mode: 'HTML',
+                reply_markup: keyboard.reply_markup,
+              }
+            );
+            await safeAnswerCallbackQuery(ctx, '❌ Wizard dibatalkan');
+            return;
+          }
+
+          if (callbackData === 'wizard_confirm_create') {
+            // Confirm and create product
+            try {
+              // Check permission
+              const admin = await accessControl.requirePermission(userId, 'stock_manage');
+
+              // Get product data from wizard
+              const productData = await wizardManager.completeWizard(userId);
+
+              // Create product
+              const product = await productService.createProduct(productData);
+
+              // Clean up wizard
+              await wizardManager.endWizard(userId);
+
+              // Show success message
+              const productName = product.name
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+              const successMessage =
+                `✅ <b>Produk Berhasil Ditambahkan</b>\n\n` +
+                `ID: <b>${product.id}</b>\n` +
+                `Nama: <b>${productName}</b>\n` +
+                `Harga: <b>Rp ${productData.price.toLocaleString('id-ID')}</b>\n` +
+                `Stok: <b>${productData.stock_quantity}</b> unit\n` +
+                `Status: <b>${product.availability_status === 'available' ? 'Tersedia' : 'Habis'}</b>\n\n` +
+                `Produk telah ditambahkan dan tersedia untuk pelanggan.`;
+
+              const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+
+              await safeEditMessageText(ctx, successMessage, {
+                parse_mode: 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+
+              logger.info('Product created via wizard', {
+                adminId: admin.id,
+                productId: product.id,
+                productName: product.name,
+              });
+
+              await safeAnswerCallbackQuery(ctx, '✅ Produk berhasil dibuat');
+              return;
+            } catch (error) {
+              logger.error('Error creating product via wizard', error, { userId });
+
+              const errorMessage = error.message
+                ? `❌ ${error.message}\n\nGunakan /admin untuk melihat menu admin.`
+                : '❌ Terjadi kesalahan saat membuat produk.\n\nGunakan /admin untuk melihat menu admin.';
+
+              const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+              await safeEditMessageText(ctx, errorMessage, {
+                parse_mode: 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+
+              await safeAnswerCallbackQuery(ctx, '❌ Error creating product');
+              return;
+            }
+          }
+
+          if (callbackData.startsWith('wizard_back_')) {
+            // Go back to previous step
+            const targetStep = callbackData.replace('wizard_back_', '');
+            const message = await wizardHandler.goBackToStep(userId, targetStep);
+            await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
+
+            await safeEditMessageText(ctx, message.text, {
+              parse_mode: message.parse_mode,
+              reply_markup: message.reply_markup,
+            });
+            await safeAnswerCallbackQuery(ctx);
+            return;
+          }
+
+          if (callbackData.startsWith('wizard_skip_')) {
+            // Skip current step
+            const stepToSkip = callbackData.replace('wizard_skip_', '');
+            const message = await wizardHandler.skipStep(userId, stepToSkip);
+            await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
+
+            await safeEditMessageText(ctx, message.text, {
+              parse_mode: message.parse_mode,
+              reply_markup: message.reply_markup,
+            });
+            await safeAnswerCallbackQuery(ctx, '⏭️ Langkah dilewati');
+            return;
+          }
+        } catch (error) {
+          logger.error('Error handling wizard callback', error, { userId, callbackData });
+          await safeAnswerCallbackQuery(ctx, '❌ Error processing wizard action');
           return;
         }
       }
@@ -1323,6 +1817,64 @@ bot.on(
 
       const userId = ctx.from.id;
       const messageText = ctx.message.text;
+
+      // Check if user is in product add wizard
+      try {
+        const wizardManager = require('./lib/admin/wizard/product-add-wizard');
+        const wizardState = await wizardManager.getWizardState(userId);
+
+        if (wizardState) {
+          // User is in wizard mode - process step input
+          const wizardHandler = require('./lib/admin/wizard/product-add-wizard-handler');
+          const result = await wizardHandler.processStepInput(userId, messageText);
+
+          if (result.success && result.message) {
+            // Ensure reply_markup is properly structured
+            const replyMarkup = result.message.reply_markup || {};
+            const hasKeyboard = replyMarkup.inline_keyboard || replyMarkup.keyboard;
+
+            // Update wizard message ID for editing
+            await wizardManager.setWizardMessageId(userId, ctx.message.message_id + 1);
+
+            // Send next step message with keyboard
+            if (hasKeyboard) {
+              await ctx.reply(result.message.text, {
+                parse_mode: result.message.parse_mode || 'HTML',
+                reply_markup: replyMarkup,
+              });
+            } else {
+              // Fallback: send message without keyboard if keyboard is missing
+              await ctx.reply(result.message.text, {
+                parse_mode: result.message.parse_mode || 'HTML',
+              });
+              logger.warn('Wizard step message missing keyboard', {
+                userId,
+                step: wizardState.step,
+              });
+            }
+          } else {
+            // Show error message with keyboard to allow user to continue
+            const currentMessage = await wizardHandler.getStepMessage(
+              wizardState.step,
+              wizardState.data
+            );
+            const errorText = `❌ ${result.error || 'Terjadi kesalahan. Silakan coba lagi.'}\n\n${currentMessage.text}`;
+
+            await ctx.reply(errorText, {
+              parse_mode: currentMessage.parse_mode || 'HTML',
+              reply_markup: currentMessage.reply_markup,
+            });
+          }
+          return;
+        }
+      } catch (wizardError) {
+        // Handle wizard errors gracefully (e.g., Redis unavailable)
+        // Continue to other handlers if wizard check fails
+        logger.debug('Error checking wizard state, continuing to other handlers', {
+          userId,
+          error: wizardError.message,
+        });
+      }
 
       // Check if message should be routed to customer service
       if (customerServiceRouter.shouldRouteToCustomerService(messageText)) {

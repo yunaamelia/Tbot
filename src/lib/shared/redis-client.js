@@ -164,11 +164,56 @@ async function closeRedis() {
  */
 async function testConnection() {
   try {
+    // Reset existing client if it's in a bad state
+    if (redisClient && redisClient.status !== 'ready' && redisClient.status !== 'connecting') {
+      try {
+        redisClient.disconnect(false);
+      } catch (disconnectError) {
+        // Ignore disconnect errors
+      }
+      redisClient = null;
+    }
+
     const redis = getRedis();
+    // If client is not connected, connect first
+    if (redis.status !== 'ready' && redis.status !== 'connecting') {
+      await redis.connect();
+    }
+    // Wait for connection to be ready
+    if (redis.status === 'connecting') {
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          redis.removeListener('ready', onReady);
+          redis.removeListener('error', onError);
+          reject(new Error('Connection timeout'));
+        }, 5000);
+        const onReady = () => {
+          clearTimeout(timeout);
+          redis.removeListener('error', onError);
+          resolve();
+        };
+        const onError = (err) => {
+          clearTimeout(timeout);
+          redis.removeListener('ready', onReady);
+          reject(err);
+        };
+        redis.once('ready', onReady);
+        redis.once('error', onError);
+      });
+    }
     await redis.ping();
     return true;
   } catch (error) {
     logger.error('Redis connection test failed', error);
+    // Reset client on error to allow retry
+    if (redisClient && redisClient.status !== 'end') {
+      try {
+        redisClient.disconnect(false);
+      } catch (disconnectError) {
+        // Ignore disconnect errors
+      }
+      redisClient = null;
+    }
     return false;
   }
 }

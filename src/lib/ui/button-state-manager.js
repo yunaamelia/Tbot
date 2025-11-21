@@ -48,6 +48,16 @@ async function disableButton(buttonId, userId, options = {}) {
       return;
     }
 
+    // Check if Redis is connected before accessing
+    if (redis.status !== 'ready') {
+      logger.debug('Skipping Redis state storage (Redis not ready)', {
+        buttonId,
+        userId,
+        redisStatus: redis.status,
+      });
+      return;
+    }
+
     const stateKey = getStateKey(buttonId, userId);
     const stateData = {
       state: 'processing',
@@ -65,7 +75,18 @@ async function disableButton(buttonId, userId, options = {}) {
       timeoutSeconds,
     });
   } catch (error) {
-    // Handle errors gracefully (non-blocking)
+    // Handle Redis connection errors gracefully (non-blocking)
+    if (error.message && error.message.includes('writeable')) {
+      // Redis unavailable - this is expected in some cases
+      logger.debug('Skipping Redis state storage (Redis unavailable)', {
+        buttonId,
+        userId,
+        error: error.message,
+      });
+      return;
+    }
+
+    // Other errors - log as warning
     logger.warn('Failed to disable button state in Redis', {
       buttonId,
       userId,
@@ -97,6 +118,16 @@ async function enableButton(buttonId, userId, options = {}) {
       return;
     }
 
+    // Check if Redis is connected before accessing
+    if (redis.status !== 'ready') {
+      logger.debug('Skipping Redis state removal (Redis not ready)', {
+        buttonId,
+        userId,
+        redisStatus: redis.status,
+      });
+      return;
+    }
+
     const stateKey = getStateKey(buttonId, userId);
     await redis.del(stateKey);
 
@@ -107,7 +138,18 @@ async function enableButton(buttonId, userId, options = {}) {
       success,
     });
   } catch (error) {
-    // Handle errors gracefully (non-blocking)
+    // Handle Redis connection errors gracefully (non-blocking)
+    if (error.message && error.message.includes('writeable')) {
+      // Redis unavailable - this is expected in some cases
+      logger.debug('Skipping Redis state removal (Redis unavailable)', {
+        buttonId,
+        userId,
+        error: error.message,
+      });
+      return;
+    }
+
+    // Other errors - log as warning
     logger.warn('Failed to enable button state in Redis', {
       buttonId,
       userId,
@@ -130,6 +172,16 @@ async function isButtonProcessing(buttonId, userId) {
       return false;
     }
 
+    // Check if Redis is connected before accessing
+    if (redis.status !== 'ready') {
+      logger.debug('Skipping button state check (Redis not ready)', {
+        buttonId,
+        userId,
+        redisStatus: redis.status,
+      });
+      return false;
+    }
+
     const stateKey = getStateKey(buttonId, userId);
     const stateJson = await redis.get(stateKey);
 
@@ -146,15 +198,35 @@ async function isButtonProcessing(buttonId, userId) {
 
     if (stateAge > timeoutMs) {
       // State expired, remove it
-      await redis.del(stateKey);
-      logger.debug('Button state expired and removed', { buttonId, userId, stateAge });
+      try {
+        await redis.del(stateKey);
+        logger.debug('Button state expired and removed', { buttonId, userId, stateAge });
+      } catch (delError) {
+        // Ignore delete errors if Redis is unavailable
+        logger.debug('Could not remove expired button state', {
+          buttonId,
+          userId,
+          error: delError.message,
+        });
+      }
       return false;
     }
 
     return stateData.state === 'processing';
   } catch (error) {
-    // Fail-safe: return false on error
-    logger.warn('Failed to check button state, returning false (fail-safe)', {
+    // Handle Redis connection errors gracefully (fail-safe: return false)
+    if (error.message && error.message.includes('writeable')) {
+      // Redis unavailable - this is expected in some cases
+      logger.debug('Skipping button state check (Redis unavailable)', {
+        buttonId,
+        userId,
+        error: error.message,
+      });
+      return false;
+    }
+
+    // Other errors - log as debug (not warning) since this is a fail-safe
+    logger.debug('Failed to check button state, returning false (fail-safe)', {
       buttonId,
       userId,
       error: error.message,
@@ -176,6 +248,16 @@ async function getButtonState(buttonId, userId) {
       return null;
     }
 
+    // Check if Redis is connected before accessing
+    if (redis.status !== 'ready') {
+      logger.debug('Skipping button state retrieval (Redis not ready)', {
+        buttonId,
+        userId,
+        redisStatus: redis.status,
+      });
+      return null;
+    }
+
     const stateKey = getStateKey(buttonId, userId);
     const stateJson = await redis.get(stateKey);
 
@@ -185,6 +267,16 @@ async function getButtonState(buttonId, userId) {
 
     return JSON.parse(stateJson);
   } catch (error) {
+    // Handle Redis connection errors gracefully
+    if (error.message && error.message.includes('writeable')) {
+      logger.debug('Skipping button state retrieval (Redis unavailable)', {
+        buttonId,
+        userId,
+        error: error.message,
+      });
+      return null;
+    }
+
     logger.warn('Failed to get button state', {
       buttonId,
       userId,
@@ -207,6 +299,16 @@ async function clearButtonState(buttonId, userId = null) {
       return;
     }
 
+    // Check if Redis is connected before accessing
+    if (redis.status !== 'ready') {
+      logger.debug('Skipping button state cleanup (Redis not ready)', {
+        buttonId,
+        userId,
+        redisStatus: redis.status,
+      });
+      return;
+    }
+
     if (userId) {
       // Clear specific user's button state
       const stateKey = getStateKey(buttonId, userId);
@@ -222,6 +324,16 @@ async function clearButtonState(buttonId, userId = null) {
 
     logger.debug('Button state cleared', { buttonId, userId });
   } catch (error) {
+    // Handle Redis connection errors gracefully
+    if (error.message && error.message.includes('writeable')) {
+      logger.debug('Skipping button state cleanup (Redis unavailable)', {
+        buttonId,
+        userId,
+        error: error.message,
+      });
+      return;
+    }
+
     logger.warn('Failed to clear button state', {
       buttonId,
       userId,
