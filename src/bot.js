@@ -80,13 +80,55 @@ async function safeEditMessageReplyMarkup(ctx, replyMarkup) {
  * @param {string} text Optional text to show
  * @returns {Promise<void>}
  */
-async function safeAnswerCallbackQuery(ctx, text = '') {
-  if (ctx && typeof ctx.answerCallbackQuery === 'function') {
-    try {
-      await ctx.answerCallbackQuery(text);
-    } catch (answerError) {
-      logger.error('Error answering callback query', answerError);
+/**
+ * Safely answer callback query - ALWAYS ensures Telegram gets a response
+ * @param {Context} ctx - Telegraf context
+ * @param {string} text - Response text (optional)
+ * @param {Object} options - Options (optional)
+ * @returns {Promise<void>}
+ */
+async function safeAnswerCallbackQuery(ctx, text = '', options = {}) {
+  if (!ctx || !ctx.callbackQuery) {
+    return; // No callback query to answer
+  }
+
+  if (typeof ctx.answerCallbackQuery !== 'function') {
+    logger.warn('ctx.answerCallbackQuery is not a function', {
+      callbackQueryId: ctx.callbackQuery?.id,
+    });
+    return;
+  }
+
+  try {
+    // Check if callback query was already answered
+    if (ctx.callbackQuery.id) {
+      await ctx.answerCallbackQuery(text, options);
+      logger.debug('Callback query answered', {
+        callbackQueryId: ctx.callbackQuery.id,
+        text: text.substring(0, 50),
+      });
     }
+  } catch (answerError) {
+    // Check if error is "query is too old" or "query already answered" - these are OK
+    const errorMessage = answerError.message || '';
+    if (
+      errorMessage.includes('query is too old') ||
+      errorMessage.includes('already answered') ||
+      errorMessage.includes('QUERY_ID_INVALID')
+    ) {
+      logger.debug('Callback query already answered or too old', {
+        callbackQueryId: ctx.callbackQuery?.id,
+        error: errorMessage,
+      });
+      return; // This is OK - query was already answered
+    }
+
+    // Other errors - log as warning (not critical since we tried)
+    logger.warn('Error answering callback query', {
+      error: answerError.message,
+      callbackQueryId: ctx.callbackQuery?.id,
+      text: text.substring(0, 50),
+    });
   }
 }
 
@@ -435,7 +477,25 @@ bot.on(
         const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
         if (isProcessing) {
           // Button is already processing - ignore duplicate click
-          await safeAnswerCallbackQuery(ctx, '⏳ Sedang diproses...', { show_alert: false });
+          // ALWAYS answer callback query to prevent Telegram from waiting
+          try {
+            await safeAnswerCallbackQuery(ctx, '⏳ Sedang diproses...', { show_alert: false });
+          } catch (answerError) {
+            // If answer fails, try to clear button state (it might be stuck)
+            logger.warn('Failed to answer duplicate click callback, clearing button state', {
+              userId,
+              callbackData,
+              error: answerError.message,
+            });
+            try {
+              await buttonStateManager.clearButtonState(callbackData, userId);
+            } catch (clearError) {
+              logger.error('Failed to clear stuck button state', clearError, {
+                userId,
+                callbackData,
+              });
+            }
+          }
           logger.debug('Duplicate button click ignored', { userId, callbackData });
           return;
         }
@@ -1722,21 +1782,54 @@ bot.on(
         return;
       }
     } catch (error) {
-      logger.error('Error handling callback query', error);
+      logger.error('Error handling callback query', error, {
+        userId,
+        callbackData,
+        errorMessage: error.message,
+        errorStack: error.stack,
+      });
+
+      // ALWAYS answer callback query first (critical for Telegram)
+      try {
+        await safeAnswerCallbackQuery(ctx, i18n.t('error_generic') || '❌ Terjadi kesalahan');
+      } catch (answerError) {
+        logger.error('Critical: Failed to answer callback query in error handler', answerError, {
+          userId,
+          callbackData,
+        });
+      }
 
       // Re-enable button on error (T071, FR-015)
       const navigationCallbacks = ['nav_home', 'nav_back', 'nav_help'];
       const isNavigationCallback =
         navigationCallbacks.includes(callbackData) || callbackData.startsWith('nav_page_');
       if (!isNavigationCallback) {
-        await buttonStateManager
-          .enableButton(callbackData, userId, {
-            resultText: '❌ Gagal',
-            success: false,
-          })
-          .catch((enableError) => {
-            logger.warn('Failed to enable button after error', { enableError });
-          });
+        // Force clear button state on error to prevent stuck buttons
+        try {
+          await buttonStateManager
+            .enableButton(callbackData, userId, {
+              resultText: '❌ Gagal',
+              success: false,
+            })
+            .catch(async (enableError) => {
+              logger.warn('Failed to enable button after error, attempting force clear', {
+                enableError: enableError.message,
+                userId,
+                callbackData,
+              });
+              // Force clear if enableButton fails
+              try {
+                await buttonStateManager.clearButtonState(callbackData, userId);
+              } catch (clearError) {
+                logger.error('Failed to force clear button state', clearError, {
+                  userId,
+                  callbackData,
+                });
+              }
+            });
+        } catch (buttonError) {
+          logger.error('Error in button state recovery', buttonError, { userId, callbackData });
+        }
       }
 
       // Log error interaction (T097, FR-021)
@@ -1793,9 +1886,32 @@ bot.on(
           error: logError.message,
         });
       }
-
-      await safeAnswerCallbackQuery(ctx, i18n.t('error_generic'));
     } finally {
+      // ALWAYS ensure callback query is answered (critical for Telegram)
+      try {
+        // Only answer if not already answered (check if ctx.callbackQuery exists)
+        if (ctx.callbackQuery && ctx.callbackQuery.id) {
+          // Check if callback query was already answered by checking if we can answer it
+          await safeAnswerCallbackQuery(ctx).catch((answerError) => {
+            // If error, callback query was likely already answered - this is OK
+            logger.debug('Callback query already answered or error', {
+              userId,
+              callbackData,
+              error: answerError.message,
+            });
+          });
+        }
+      } catch (finallyAnswerError) {
+        logger.error(
+          'Critical: Failed to answer callback query in finally block',
+          finallyAnswerError,
+          {
+            userId,
+            callbackData,
+          }
+        );
+      }
+
       // Re-enable button after processing completes (T071, FR-015)
       // Only if not navigation callback and if button was disabled
       const navigationCallbacks = ['nav_home', 'nav_back', 'nav_help'];
@@ -1806,14 +1922,32 @@ bot.on(
       const responseTime = Date.now() - startTime;
 
       if (!isNavigationCallback) {
-        // Check if button is still processing (if yes, re-enable)
+        // ALWAYS try to clear button state to prevent stuck buttons
         try {
           const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
           if (isProcessing) {
-            await buttonStateManager.enableButton(callbackData, userId, {
-              resultText: '✅ Selesai',
-              success: true,
-            });
+            // Button is still processing - re-enable it
+            await buttonStateManager
+              .enableButton(callbackData, userId, {
+                resultText: '✅ Selesai',
+                success: true,
+              })
+              .catch(async (enableError) => {
+                // If enableButton fails, try force clear
+                logger.warn('Failed to enable button in finally, attempting force clear', {
+                  userId,
+                  callbackData,
+                  error: enableError.message,
+                });
+                try {
+                  await buttonStateManager.clearButtonState(callbackData, userId);
+                } catch (clearError) {
+                  logger.error('Failed to force clear button state in finally', clearError, {
+                    userId,
+                    callbackData,
+                  });
+                }
+              });
             logger.debug('Button re-enabled after processing', {
               userId,
               callbackData,
@@ -1821,12 +1955,20 @@ bot.on(
             });
           }
         } catch (enableError) {
-          // Ignore errors when enabling button (non-critical)
-          logger.warn('Failed to enable button in finally block', {
+          // If check fails, try force clear anyway to prevent stuck buttons
+          logger.warn('Failed to check/enable button in finally block, attempting force clear', {
             userId,
             callbackData,
             error: enableError.message,
           });
+          try {
+            await buttonStateManager.clearButtonState(callbackData, userId);
+          } catch (clearError) {
+            logger.error('Failed to force clear button state in finally', clearError, {
+              userId,
+              callbackData,
+            });
+          }
         }
       }
 
