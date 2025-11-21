@@ -32,14 +32,23 @@ describe('Real-Time Stock Management Integration Tests', () => {
   });
 
   afterAll(async () => {
+    let timeoutId;
     try {
       // Stop catalog sync listener if running (prevent hanging connections)
       try {
-        await Promise.race([
-          catalogSync.stopListening(),
-          new Promise((resolve) => setTimeout(resolve, 500)),
-        ]);
+        const timeoutPromise = new Promise((resolve) => {
+          timeoutId = setTimeout(() => resolve(), 500);
+        });
+        await Promise.race([catalogSync.stopListening(), timeoutPromise]);
+        // Clear timeout if it's still pending
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       } catch (error) {
+        // Clear timeout on error
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         // Ignore if already stopped
       }
 
@@ -51,6 +60,10 @@ describe('Real-Time Stock Management Integration Tests', () => {
         await db('admins').del();
       }
     } catch (error) {
+      // Clear timeout on error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       // Ignore cleanup errors
     }
   }, 5000);
