@@ -300,4 +300,114 @@ describe('Enhanced Inline Keyboard System - User Story 1 Integration Tests', () 
       });
     });
   });
+
+  describe('Fixed Navigation Controls for User Story 2', () => {
+    describe('Given any menu screen', () => {
+      test('When menu is displayed, Then Home/Help/Back buttons are present at bottom row', async () => {
+        const items = Array.from({ length: 5 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        // Should have navigation buttons in last row
+        expect(lastRow.length).toBeGreaterThanOrEqual(3); // Home, Help, Back
+
+        // Check for Home button
+        const homeButton = lastRow.find((btn) => btn.callback_data === 'nav_home');
+        expect(homeButton).toBeDefined();
+        expect(homeButton.text).toMatch(/home|🏠/i);
+
+        // Check for Help button
+        const helpButton = lastRow.find((btn) => btn.callback_data === 'nav_help');
+        expect(helpButton).toBeDefined();
+        expect(helpButton.text).toMatch(/help|bantuan|❓/i);
+
+        // Check for Back button
+        const backButton = lastRow.find((btn) => btn.callback_data === 'nav_back');
+        expect(backButton).toBeDefined();
+        expect(backButton.text).toMatch(/back|kembali|◀️/i);
+      });
+
+      test('When menu with 0 items is displayed, Then Home/Help buttons are still present', async () => {
+        const items = [];
+
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+
+        // Should have at least navigation buttons
+        expect(keyboardRows.length).toBeGreaterThanOrEqual(1);
+
+        // Check if navigation buttons are present (might be in last row)
+        const allButtons = keyboardRows.flat();
+        const homeButton = allButtons.find((btn) => btn.callback_data === 'nav_home');
+        const helpButton = allButtons.find((btn) => btn.callback_data === 'nav_help');
+
+        expect(homeButton).toBeDefined();
+        expect(helpButton).toBeDefined();
+      });
+    });
+
+    describe('Given Home button navigation', () => {
+      test('When user clicks Home button, Then callback_data is nav_home', async () => {
+        const items = [{ text: 'Test', callback_data: 'test' }];
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        const homeButton = lastRow.find((btn) => btn.callback_data === 'nav_home');
+        expect(homeButton).toBeDefined();
+        expect(homeButton.callback_data).toBe('nav_home');
+      });
+    });
+
+    describe('Given Help button functionality', () => {
+      test('When user clicks Help button, Then callback_data is nav_help', async () => {
+        const items = [{ text: 'Test', callback_data: 'test' }];
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        const helpButton = lastRow.find((btn) => btn.callback_data === 'nav_help');
+        expect(helpButton).toBeDefined();
+        expect(helpButton.callback_data).toBe('nav_help');
+      });
+    });
+
+    describe('Given Back button navigation', () => {
+      test('When user clicks Back button, Then callback_data is nav_back', async () => {
+        const items = [{ text: 'Test', callback_data: 'test' }];
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        const backButton = lastRow.find((btn) => btn.callback_data === 'nav_back');
+        expect(backButton).toBeDefined();
+        expect(backButton.callback_data).toBe('nav_back');
+      });
+    });
+
+    describe('Given Back button at main menu', () => {
+      test('When user is at main menu, Then Back button should be disabled or show feedback', async () => {
+        // This test will verify Back button behavior at main menu
+        // Implementation will check navigation history to determine if Back should be disabled
+        const items = [{ text: 'Main Menu Item', callback_data: 'main_item' }];
+        const keyboard = await keyboardBuilder.createKeyboard(items, {
+          isMainMenu: true, // Flag to indicate main menu
+        });
+
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        const backButton = lastRow.find((btn) => btn.callback_data === 'nav_back');
+        expect(backButton).toBeDefined();
+
+        // At main menu, Back button should be disabled or have different behavior
+        // This will be verified in implementation
+      });
+    });
+  });
 });

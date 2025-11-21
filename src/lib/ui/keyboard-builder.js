@@ -84,8 +84,10 @@ function validateButtonLabel(label) {
  */
 async function createKeyboard(items, options = {}) {
   try {
-    // Validate items (T025)
-    validateMenuItems(items);
+    // Validate items array structure (T025) - check array type first
+    if (!Array.isArray(items)) {
+      throw new ValidationError('Items must be an array');
+    }
 
     // Log keyboard generation (T026)
     logger.debug('Creating keyboard', {
@@ -95,11 +97,18 @@ async function createKeyboard(items, options = {}) {
 
     const { includeNavigation = true, maxItemsPerRow = MAX_ITEMS_PER_ROW } = options;
 
-    // Handle empty menu state (0 items)
+    // Handle empty menu state (0 items) - T033: Show Home and Help buttons (FR-003, FR-005)
     if (items.length === 0) {
-      logger.info('Empty menu state - showing Home button only');
-      return Markup.inlineKeyboard([[Markup.button.callback('🏠 Home', 'nav_home')]]);
+      logger.info('Empty menu state - showing Home and Help buttons');
+      const { isMainMenu = false } = options;
+      const navButtons = createNavigationRow({ isMainMenu });
+      // Show only Home and Help buttons for empty state (no Back button)
+      const emptyStateButtons = navButtons.filter((btn) => btn.callback_data !== 'nav_back');
+      return Markup.inlineKeyboard([emptyStateButtons]);
     }
+
+    // Validate non-empty items array (T025)
+    validateMenuItems(items);
 
     // Handle pagination for >9 items (T022, FR-002: only show at 10+ items, not at exactly 9)
     if (items.length > MAX_ITEMS_PER_SCREEN) {
@@ -155,9 +164,10 @@ async function createKeyboard(items, options = {}) {
       })
     );
 
-    // Add navigation row if requested
+    // Add navigation row if requested (T033: includes Help button)
     if (includeNavigation) {
-      rows.push(createNavigationRow());
+      const { isMainMenu = false } = options;
+      rows.push(createNavigationRow({ isMainMenu }));
     }
 
     const keyboard = Markup.inlineKeyboard(rows);
@@ -295,9 +305,10 @@ function createPaginatedKeyboard(items, options = {}) {
     lastRow.push(Markup.button.callback('Selanjutnya ▶️', `nav_page_${page + 1}`));
   }
 
-  // Add Home/Back buttons to the same row if requested
+  // Add Home/Help/Back buttons to the same row if requested (T033: includes Help button)
   if (includeNavigation) {
-    const navButtons = createNavigationRow();
+    const { isMainMenu = false } = options;
+    const navButtons = createNavigationRow({ isMainMenu });
     lastRow.push(...navButtons);
   }
 

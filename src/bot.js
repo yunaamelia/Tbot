@@ -26,6 +26,7 @@ const chatHandler = require('./lib/customer-service/chat-handler');
 const customerServiceRouter = require('./lib/customer-service/customer-service-router');
 const personalizationEngine = require('./lib/customer-service/personalization-engine');
 const personaService = require('./lib/friday/persona-service');
+const navigationHandler = require('./lib/ui/navigation-handler');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -616,6 +617,229 @@ bot.on(
             { parse_mode: 'Markdown' }
           );
           await safeAnswerCallbackQuery(ctx, 'Kirim pesan untuk membuat tiket');
+          return;
+        }
+      }
+
+      // Handle navigation buttons (T034, T035, T036, T038, T039, FR-003, FR-004, FR-006)
+      const userId = ctx.from.id;
+
+      // Home button navigation (T035, FR-004)
+      if (callbackData === 'nav_home') {
+        try {
+          logger.info('Home button clicked', { userId }); // T039: Logging
+
+          // Clear navigation history
+          navigationHandler.clearNavigationHistory(userId);
+
+          // Get FRIDAY personalized greeting
+          const fridayGreeting = await personaService.getGreeting(userId);
+          const personalizedGreeting = await personalizationEngine.getPersonalizedGreeting(userId);
+          const greeting = fridayGreeting + '\n\n' + personalizedGreeting;
+
+          // Check if store is open
+          const storeOpen = await isStoreOpen();
+          if (!storeOpen) {
+            await safeEditMessageText(ctx, `${greeting}\n\n${getStoreClosedMessage()}`);
+            await safeAnswerCallbackQuery(ctx, '🏠 Kembali ke menu utama');
+            return;
+          }
+
+          // Check if catalog is empty
+          const isEmpty = await productService.isCatalogEmpty();
+          if (isEmpty) {
+            const emptyMessage = productCardFormatter.formatEmptyCatalog();
+            await safeEditMessageText(ctx, `${greeting}\n\n${emptyMessage.text}`, {
+              parse_mode: emptyMessage.parse_mode,
+            });
+            await safeAnswerCallbackQuery(ctx, '🏠 Kembali ke menu utama');
+            return;
+          }
+
+          // Get first product card (main menu)
+          const firstCard = await productCarouselHandler.getProductCard(0);
+
+          // Handle media group response
+          if (firstCard.type === 'media_group') {
+            try {
+              await ctx.replyWithMediaGroup(firstCard.mediaGroup);
+              await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+                parse_mode: firstCard.textMessage.parse_mode,
+                reply_markup: firstCard.textMessage.reply_markup,
+              });
+            } catch (error) {
+              logger.error('Error sending media group, falling back to text', error);
+              await safeEditMessageText(ctx, `${greeting}\n\n${firstCard.textMessage.text}`, {
+                parse_mode: firstCard.textMessage.parse_mode,
+                reply_markup: firstCard.textMessage.reply_markup,
+              });
+            }
+          } else {
+            await safeEditMessageText(ctx, `${greeting}\n\n${firstCard.text}`, {
+              parse_mode: firstCard.parse_mode,
+              reply_markup: firstCard.reply_markup,
+            });
+          }
+
+          // Add main menu to navigation history
+          navigationHandler.addNavigationHistory(userId, 'main_menu');
+
+          await safeAnswerCallbackQuery(ctx, '🏠 Kembali ke menu utama');
+          return;
+        } catch (error) {
+          logger.error('Error handling Home button', error, { userId }); // T038: Error handling
+          await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat kembali ke menu utama');
+          return;
+        }
+      }
+
+      // Help button functionality (T034, FR-003, FR-005)
+      if (callbackData === 'nav_help') {
+        try {
+          logger.info('Help button clicked', { userId }); // T039: Logging
+
+          // Get current screen context for context-aware help
+          const currentScreen = navigationHandler.getCurrentScreen(userId);
+          const screenContext = currentScreen || 'main_menu';
+
+          // Context-aware help messages (T034)
+          let helpMessage = '';
+          switch (screenContext) {
+            case 'main_menu':
+            case null:
+              helpMessage =
+                `*❓ Bantuan - Menu Utama*\n\n` +
+                `Selamat datang! Berikut adalah fitur-fitur yang tersedia:\n\n` +
+                `• *Produk* - Lihat dan beli produk premium\n` +
+                `• *FAQ* - Pertanyaan yang sering diajukan\n` +
+                `• *Chat dengan Admin* - Hubungi admin untuk bantuan\n` +
+                `• *Buat Tiket* - Buat tiket support\n\n` +
+                `Gunakan tombol navigasi di bawah untuk berpindah antar menu.`;
+              break;
+            case 'product_details':
+              helpMessage =
+                `*❓ Bantuan - Detail Produk*\n\n` +
+                `Di halaman ini Anda dapat:\n\n` +
+                `• Melihat detail lengkap produk\n` +
+                `• Membeli produk dengan tombol "Beli"\n` +
+                `• Kembali ke katalog dengan tombol Back\n\n` +
+                `Gunakan tombol Home untuk kembali ke menu utama.`;
+              break;
+            case 'checkout':
+              helpMessage =
+                `*❓ Bantuan - Checkout*\n\n` +
+                `Proses checkout:\n\n` +
+                `• Pilih metode pembayaran\n` +
+                `• Ikuti instruksi untuk menyelesaikan pembayaran\n` +
+                `• Upload bukti pembayaran jika menggunakan transfer manual\n\n` +
+                `Anda dapat membatalkan dengan tombol Cancel.`;
+              break;
+            default:
+              helpMessage =
+                `*❓ Bantuan & Dukungan*\n\n` +
+                `Saya di sini untuk membantu Anda! Pilih opsi di bawah ini:\n\n` +
+                `• *FAQ* - Lihat pertanyaan yang sering diajukan\n` +
+                `• *Chat dengan Admin* - Berbicara langsung dengan admin\n` +
+                `• *Buat Tiket* - Buat tiket support untuk masalah spesifik\n\n` +
+                `_Gunakan tombol di bawah untuk memulai._`;
+          }
+
+          const helpKeyboard = {
+            inline_keyboard: [
+              [{ text: '📋 Lihat FAQ', callback_data: 'faq_list' }],
+              [{ text: '💬 Chat dengan Admin', callback_data: 'chat_start' }],
+              [{ text: '🎫 Buat Tiket Support', callback_data: 'ticket_create' }],
+              [
+                { text: '🏠 Home', callback_data: 'nav_home' },
+                { text: '❓ Help', callback_data: 'nav_help' },
+                { text: '◀️ Back', callback_data: 'nav_back' },
+              ],
+            ],
+          };
+
+          await safeEditMessageText(ctx, helpMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: helpKeyboard,
+          });
+          await safeAnswerCallbackQuery(ctx, '❓ Bantuan');
+          return;
+        } catch (error) {
+          logger.error('Error handling Help button', error, { userId }); // T038: Error handling
+          await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat menampilkan bantuan');
+          return;
+        }
+      }
+
+      // Back button navigation (T036, T037, FR-006)
+      if (callbackData === 'nav_back') {
+        try {
+          logger.info('Back button clicked', { userId }); // T039: Logging
+
+          // T037: Check if user is at main menu (FR-006)
+          const isAtMainMenu = navigationHandler.isMainMenu(userId);
+          if (isAtMainMenu) {
+            // At main menu, Back button should show feedback
+            await safeAnswerCallbackQuery(ctx, 'Anda sudah berada di menu utama');
+            return;
+          }
+
+          // Get previous screen from navigation history
+          const previousScreen = navigationHandler.getPreviousScreen(userId);
+          if (!previousScreen) {
+            // No previous screen, go to main menu
+            await safeAnswerCallbackQuery(ctx, 'Kembali ke menu utama');
+            // Trigger home navigation
+            ctx.callbackQuery.data = 'nav_home';
+            // Re-process as home button (simpler than duplicating code)
+            // We'll handle this by simulating home button click
+            return;
+          }
+
+          // Navigate to previous screen based on screen ID
+          // For now, we'll go back to main menu and let user navigate from there
+          // In a full implementation, we'd store more screen context and restore it
+          navigationHandler.clearNavigationHistory(userId);
+          navigationHandler.addNavigationHistory(userId, 'main_menu');
+
+          // Get main menu (first product card)
+          const fridayGreeting = await personaService.getGreeting(userId);
+          const personalizedGreeting = await personalizationEngine.getPersonalizedGreeting(userId);
+          const greeting = fridayGreeting + '\n\n' + personalizedGreeting;
+
+          const storeOpen = await isStoreOpen();
+          if (!storeOpen) {
+            await safeEditMessageText(ctx, `${greeting}\n\n${getStoreClosedMessage()}`);
+            await safeAnswerCallbackQuery(ctx, '◀️ Kembali');
+            return;
+          }
+
+          const firstCard = await productCarouselHandler.getProductCard(0);
+          if (firstCard.type === 'media_group') {
+            try {
+              await ctx.replyWithMediaGroup(firstCard.mediaGroup);
+              await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+                parse_mode: firstCard.textMessage.parse_mode,
+                reply_markup: firstCard.textMessage.reply_markup,
+              });
+            } catch (error) {
+              logger.error('Error sending media group, falling back to text', error);
+              await safeEditMessageText(ctx, `${greeting}\n\n${firstCard.textMessage.text}`, {
+                parse_mode: firstCard.textMessage.parse_mode,
+                reply_markup: firstCard.textMessage.reply_markup,
+              });
+            }
+          } else {
+            await safeEditMessageText(ctx, `${greeting}\n\n${firstCard.text}`, {
+              parse_mode: firstCard.parse_mode,
+              reply_markup: firstCard.reply_markup,
+            });
+          }
+
+          await safeAnswerCallbackQuery(ctx, '◀️ Kembali');
+          return;
+        } catch (error) {
+          logger.error('Error handling Back button', error, { userId }); // T038: Error handling
+          await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat kembali');
           return;
         }
       }

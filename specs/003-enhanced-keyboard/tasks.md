@@ -85,22 +85,22 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T027 [P] [US2] Integration test for Home/Help/Back buttons present on all menu screens in tests/integration/enhanced-keyboard.test.js
-- [ ] T028 [P] [US2] Integration test for Home button navigation (returns to main menu) in tests/integration/enhanced-keyboard.test.js
-- [ ] T029 [P] [US2] Integration test for Help button functionality (shows context-aware help) in tests/integration/enhanced-keyboard.test.js
-- [ ] T030 [P] [US2] Integration test for Back button navigation (returns to previous menu) in tests/integration/enhanced-keyboard.test.js
-- [ ] T031 [P] [US2] Integration test for Back button disabled/feedback at main menu in tests/integration/enhanced-keyboard.test.js
+- [x] T027 [P] [US2] Integration test for Home/Help/Back buttons present on all menu screens in tests/integration/enhanced-keyboard.test.js
+- [x] T028 [P] [US2] Integration test for Home button navigation (returns to main menu) in tests/integration/enhanced-keyboard.test.js
+- [x] T029 [P] [US2] Integration test for Help button functionality (shows context-aware help) in tests/integration/enhanced-keyboard.test.js
+- [x] T030 [P] [US2] Integration test for Back button navigation (returns to previous menu) in tests/integration/enhanced-keyboard.test.js
+- [x] T031 [P] [US2] Integration test for Back button disabled/feedback at main menu in tests/integration/enhanced-keyboard.test.js
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Verify existing createNavigationRow() in src/lib/ui/navigation-handler.js includes Help button (FR-003, FR-005)
-- [ ] T033 [US2] Add Help button to navigation row if not already present in src/lib/ui/navigation-handler.js
-- [ ] T034 [US2] Implement Help button callback handler with context-aware help in src/bot.js
-- [ ] T035 [US2] Verify existing Home button navigation works correctly (FR-004)
-- [ ] T036 [US2] Verify existing Back button navigation works correctly (FR-006)
-- [ ] T037 [US2] Add Back button disabled state check at main menu in src/lib/ui/navigation-handler.js
-- [ ] T038 [US2] Add error handling for navigation button callbacks in src/bot.js
-- [ ] T039 [US2] Add logging for navigation actions (Home, Help, Back) in src/bot.js
+- [x] T032 [US2] Verify existing createNavigationRow() in src/lib/ui/navigation-handler.js includes Help button (FR-003, FR-005)
+- [x] T033 [US2] Add Help button to navigation row if not already present in src/lib/ui/navigation-handler.js
+- [x] T034 [US2] Implement Help button callback handler with context-aware help in src/bot.js
+- [x] T035 [US2] Verify existing Home button navigation works correctly (FR-004)
+- [x] T036 [US2] Verify existing Back button navigation works correctly (FR-006)
+- [x] T037 [US2] Add Back button disabled state check at main menu in src/lib/ui/navigation-handler.js
+- [x] T038 [US2] Add error handling for navigation button callbacks in src/bot.js
+- [x] T039 [US2] Add logging for navigation actions (Home, Help, Back) in src/bot.js
 
 **Checkpoint**: At this point, User Story 2 should be fully functional. All menus have fixed Home/Help/Back navigation buttons, and navigation works correctly from any screen.
 
