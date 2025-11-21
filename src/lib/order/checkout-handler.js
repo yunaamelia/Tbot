@@ -11,6 +11,7 @@ const productService = require('../product/product-service');
 const stockRepository = require('../product/stock-repository');
 const checkoutSession = require('./checkout-session');
 const keyboardBuilder = require('../ui/keyboard-builder');
+const paymentConfig = require('../payment/config/payment-config');
 const { isStoreOpen, getStoreClosedMessage } = require('../shared/store-config');
 const { NotFoundError, ConflictError } = require('../shared/errors');
 const i18n = require('../shared/i18n');
@@ -156,24 +157,28 @@ class CheckoutHandler {
    * @returns {Promise<Object>} Formatted message with text and inline keyboard
    */
   async formatPaymentMethodSelection(sessionData) {
+    // Get available payment methods from config (T052, T053)
+    const methods = await paymentConfig.getAvailableMethods();
+    const enabledMethods = methods.filter((m) => m.enabled);
+
+    if (enabledMethods.length === 0) {
+      throw new ConflictError(
+        'Tidak ada metode pembayaran yang dikonfigurasi. Silakan hubungi admin.'
+      );
+    }
+
     const text =
       `💳 *Pilih Metode Pembayaran*\n\n` +
       `Total pembayaran: *Rp ${sessionData.totalAmount.toLocaleString('id-ID')}*\n\n` +
       `Pilih metode pembayaran yang Anda inginkan:`;
 
-    // Use responsive keyboard builder for balanced layout (T039)
-    const paymentMethodItems = [
-      {
-        text: '💳 QRIS Otomatis',
-        callback_data: 'checkout_payment_qris',
-      },
-      {
-        text: '🏦 Transfer Bank Manual',
-        callback_data: 'checkout_payment_manual',
-      },
-    ];
+    // Convert enabled methods to keyboard items (T053)
+    const paymentMethodItems = enabledMethods.map((method) => ({
+      text: `${method.icon} ${method.displayName}`,
+      callback_data: `checkout_payment_${method.type}`,
+    }));
 
-    // Create responsive keyboard with Home/Back navigation (async)
+    // Create responsive keyboard with Home/Back navigation (T039, T052)
     const keyboard = await keyboardBuilder.createKeyboard(paymentMethodItems, {
       includeNavigation: true,
     });

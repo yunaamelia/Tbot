@@ -125,23 +125,23 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T043 [P] [US3] Integration test for QRIS payment method display when configured in tests/integration/payment-config.test.js
-- [ ] T044 [P] [US3] Integration test for E-Wallet payment method display when configured in tests/integration/payment-config.test.js
-- [ ] T045 [P] [US3] Integration test for Bank Transfer payment method display when configured in tests/integration/payment-config.test.js
-- [ ] T046 [P] [US3] Integration test for hiding unconfigured payment methods in tests/integration/payment-config.test.js
-- [ ] T047 [P] [US3] Integration test for error when no payment methods configured in tests/integration/payment-config.test.js
-- [ ] T048 [P] [US3] Integration test for balanced keyboard layout with multiple payment methods in tests/integration/payment-config.test.js
-- [ ] T049 [P] [US3] Unit test for validateMethod() for each payment type in tests/unit/payment/config/method-validator.test.js
+- [x] T043 [P] [US3] Integration test for QRIS payment method display when configured in tests/integration/payment-config.test.js
+- [x] T044 [P] [US3] Integration test for E-Wallet payment method display when configured in tests/integration/payment-config.test.js
+- [x] T045 [P] [US3] Integration test for Bank Transfer payment method display when configured in tests/integration/payment-config.test.js
+- [x] T046 [P] [US3] Integration test for hiding unconfigured payment methods in tests/integration/payment-config.test.js
+- [x] T047 [P] [US3] Integration test for error when no payment methods configured in tests/integration/payment-config.test.js
+- [x] T048 [P] [US3] Integration test for balanced keyboard layout with multiple payment methods in tests/integration/payment-config.test.js
+- [x] T049 [P] [US3] Unit test for validateMethod() for each payment type in tests/unit/payment/config/method-validator.test.js
 
 ### Implementation for User Story 3
 
-- [ ] T050 [P] [US3] Create method-validator.js with validation logic for each payment type in src/lib/payment/config/method-validator.js
-- [ ] T051 [US3] Implement payment-config.js with getAvailableMethods() and isMethodEnabled() in src/lib/payment/config/payment-config.js
-- [ ] T052 [US3] Add Redis caching for payment methods (key: payment:methods, TTL: 1 hour) in src/lib/payment/config/payment-config.js
-- [ ] T053 [US3] Implement refreshCache() method for payment configuration in src/lib/payment/config/payment-config.js
-- [ ] T054 [US3] Integrate payment config into checkout handler to display only enabled methods in src/lib/order/checkout-handler.js
-- [ ] T055 [US3] Add error handling for missing payment configuration in src/lib/payment/config/payment-config.js
-- [ ] T056 [US3] Add logging for payment method loading and caching operations
+- [x] T050 [P] [US3] Create method-validator.js with validation logic for each payment type in src/lib/payment/config/method-validator.js
+- [x] T051 [US3] Implement payment-config.js with getAvailableMethods() and isMethodEnabled() in src/lib/payment/config/payment-config.js
+- [x] T052 [US3] Add Redis caching for payment methods (key: payment:methods, TTL: 1 hour) in src/lib/payment/config/payment-config.js
+- [x] T053 [US3] Implement refreshCache() method for payment configuration in src/lib/payment/config/payment-config.js
+- [x] T054 [US3] Integrate payment config into checkout handler to display only enabled methods in src/lib/order/checkout-handler.js
+- [x] T055 [US3] Add error handling for missing payment configuration in src/lib/payment/config/payment-config.js
+- [x] T056 [US3] Add logging for payment method loading and caching operations
 
 **Checkpoint**: At this point, User Story 3 should be fully functional. Payment selection displays only configured methods dynamically.
 
