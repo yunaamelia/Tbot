@@ -8,6 +8,8 @@
  */
 
 const keyboardBuilder = require('../../src/lib/ui/keyboard-builder');
+const interactionLogger = require('../../src/lib/monitoring/interaction-logger');
+const dbConnection = require('../../src/lib/database/db-connection');
 const redisClient = require('../../src/lib/shared/redis-client');
 
 describe('Enhanced Inline Keyboard System - User Story 1 Integration Tests', () => {
@@ -606,6 +608,181 @@ describe('Enhanced Inline Keyboard System - User Story 1 Integration Tests', () 
         // Danger buttons should have red emoji
         expect(dangerButton?.text).toMatch(/🔴/);
       });
+    });
+  });
+
+  describe('Interaction Logging for User Story Monitoring (T101, FR-019, FR-020, FR-021)', () => {
+    const testUserId = 999888777;
+    let dbAvailable = false;
+
+    beforeAll(async () => {
+      // Check if database is available
+      try {
+        const db = dbConnection.getDb();
+        if (db) {
+          // Try a simple query
+          await db.raw('SELECT 1');
+          dbAvailable = true;
+        }
+      } catch (error) {
+        dbAvailable = false;
+        console.warn('Database not available, skipping interaction logging integration tests');
+      }
+    });
+
+    afterEach(async () => {
+      // Cleanup: Delete test interaction logs
+      if (dbAvailable) {
+        try {
+          const db = dbConnection.getDb();
+          await db('interaction_logs').where('telegram_user_id', testUserId).del();
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    test('When user clicks button, Then interaction is logged to database (T101, FR-019)', async () => {
+      if (!dbAvailable) {
+        return; // Skip test if database not available
+      }
+
+      const interactionData = {
+        telegramUserId: testUserId,
+        buttonId: 'test_button_click',
+        buttonLabel: 'Test Button',
+        responseTimeMs: 150,
+        menuContext: 'main',
+        success: true,
+      };
+
+      const logId = await interactionLogger.logInteraction(interactionData);
+
+      expect(logId).toBeDefined();
+      expect(typeof logId).toBe('number');
+
+      // Verify log was stored in database
+      const db = dbConnection.getDb();
+      const log = await db('interaction_logs').where('id', logId).first();
+
+      expect(log).toBeDefined();
+      expect(log.telegram_user_id).toBe(testUserId);
+      expect(log.button_id).toBe('test_button_click');
+      expect(log.button_label).toBe('Test Button');
+      expect(log.response_time_ms).toBe(150);
+      expect(log.menu_context).toBe('main');
+      expect(log.success).toBe(true);
+    });
+
+    test('When interaction has response time, Then response time is tracked correctly (T101, FR-020)', async () => {
+      if (!dbAvailable) {
+        return; // Skip test if database not available
+      }
+
+      const startTime = Date.now();
+      // Simulate some processing time
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const responseTime = Date.now() - startTime;
+
+      const interactionData = {
+        telegramUserId: testUserId,
+        buttonId: 'test_button_timing',
+        buttonLabel: 'Test Button Timing',
+        responseTimeMs: responseTime,
+        menuContext: 'products',
+        success: true,
+      };
+
+      const logId = await interactionLogger.logInteraction(interactionData);
+
+      // Verify response time was logged
+      const db = dbConnection.getDb();
+      const log = await db('interaction_logs').where('id', logId).first();
+
+      expect(log.response_time_ms).toBeGreaterThanOrEqual(50);
+      expect(log.response_time_ms).toBeLessThan(200); // Should be reasonable
+    });
+
+    test('When interaction fails, Then error is logged with error details (T101, FR-021)', async () => {
+      if (!dbAvailable) {
+        return; // Skip test if database not available
+      }
+
+      const error = new Error('Test error message');
+      const interactionData = {
+        telegramUserId: testUserId,
+        buttonId: 'test_button_error',
+        buttonLabel: 'Test Button Error',
+        responseTimeMs: 200,
+        menuContext: 'checkout',
+        success: false,
+        error: error,
+      };
+
+      const logId = await interactionLogger.logInteraction(interactionData);
+
+      // Verify error was logged
+      const db = dbConnection.getDb();
+      const log = await db('interaction_logs').where('id', logId).first();
+
+      expect(log.success).toBe(false);
+      expect(log.error_message).toContain('Test error message');
+      expect(log.metadata).toBeTruthy();
+
+      const metadata = JSON.parse(log.metadata);
+      expect(metadata.error).toBeDefined();
+      expect(metadata.error.message).toBe('Test error message');
+    });
+
+    test('When interaction includes metadata, Then metadata is stored as JSON (T101)', async () => {
+      if (!dbAvailable) {
+        return; // Skip test if database not available
+      }
+
+      const metadata = {
+        pageNumber: 2,
+        totalPages: 5,
+        itemCount: 15,
+      };
+
+      const interactionData = {
+        telegramUserId: testUserId,
+        buttonId: 'nav_page_2',
+        buttonLabel: 'Halaman Selanjutnya',
+        responseTimeMs: 120,
+        menuContext: 'pagination',
+        success: true,
+        metadata: metadata,
+      };
+
+      const logId = await interactionLogger.logInteraction(interactionData);
+
+      // Verify metadata was stored
+      const db = dbConnection.getDb();
+      const log = await db('interaction_logs').where('id', logId).first();
+
+      expect(log.metadata).toBeTruthy();
+      const storedMetadata = JSON.parse(log.metadata);
+      expect(storedMetadata.pageNumber).toBe(2);
+      expect(storedMetadata.totalPages).toBe(5);
+      expect(storedMetadata.itemCount).toBe(15);
+    });
+
+    test('When interaction logging fails, Then error is handled gracefully (T101)', async () => {
+      if (!dbAvailable) {
+        return; // Skip test if database not available
+      }
+
+      // Test with invalid data (should not throw)
+      const invalidData = {
+        telegramUserId: null, // Invalid
+        buttonId: 'test',
+        buttonLabel: 'Test',
+        responseTimeMs: 100,
+      };
+
+      // Should throw ValidationError, not crash
+      await expect(interactionLogger.logInteraction(invalidData)).rejects.toThrow();
     });
   });
 });

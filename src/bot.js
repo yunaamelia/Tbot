@@ -29,6 +29,7 @@ const personalizationEngine = require('./lib/customer-service/personalization-en
 const personaService = require('./lib/friday/persona-service');
 const navigationHandler = require('./lib/ui/navigation-handler');
 const buttonStateManager = require('./lib/ui/button-state-manager');
+const interactionLogger = require('./lib/monitoring/interaction-logger');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -299,6 +300,7 @@ bot.on(
     const startTime = Date.now();
     const userId = ctx.from.id;
     const callbackData = ctx.callbackQuery.data;
+    let interactionLogged = false; // Flag to track if interaction was already logged
 
     try {
       // Button state management (T071, FR-014, FR-015): Check if button is already processing
@@ -1156,6 +1158,61 @@ bot.on(
           });
       }
 
+      // Log error interaction (T097, FR-021)
+      const responseTime = Date.now() - startTime;
+      try {
+        let buttonLabel = callbackData;
+        if (ctx.callbackQuery && ctx.callbackQuery.message) {
+          const message = ctx.callbackQuery.message;
+          if (message.text) {
+            buttonLabel = message.text.substring(0, 255);
+          }
+        }
+
+        let menuContext = 'main';
+        if (callbackData.startsWith('product_')) {
+          menuContext = 'products';
+        } else if (callbackData.startsWith('checkout_')) {
+          menuContext = 'checkout';
+        } else if (callbackData.startsWith('admin_')) {
+          menuContext = 'admin';
+        } else if (callbackData.startsWith('payment_')) {
+          menuContext = 'payment';
+        } else if (callbackData.startsWith('nav_')) {
+          menuContext = 'navigation';
+        } else if (callbackData.startsWith('nav_page_')) {
+          menuContext = 'pagination';
+        }
+
+        // Log error interaction (don't await to avoid blocking)
+        interactionLogged = true; // Mark as logged
+        interactionLogger
+          .logInteraction({
+            telegramUserId: userId,
+            buttonId: callbackData,
+            buttonLabel: buttonLabel,
+            responseTimeMs: responseTime,
+            menuContext: menuContext,
+            success: false,
+            error: error,
+          })
+          .catch((logError) => {
+            // Silently ignore logging errors (non-critical)
+            logger.debug('Failed to log error interaction', {
+              userId,
+              callbackData,
+              error: logError.message,
+            });
+          });
+      } catch (logError) {
+        // Silently ignore logging errors (non-critical)
+        logger.debug('Failed to log error interaction in catch block', {
+          userId,
+          callbackData,
+          error: logError.message,
+        });
+      }
+
       await safeAnswerCallbackQuery(ctx, i18n.t('error_generic'));
     } finally {
       // Re-enable button after processing completes (T071, FR-015)
@@ -1164,13 +1221,14 @@ bot.on(
       const isNavigationCallback =
         navigationCallbacks.includes(callbackData) || callbackData.startsWith('nav_page_');
 
+      // Calculate response time
+      const responseTime = Date.now() - startTime;
+
       if (!isNavigationCallback) {
         // Check if button is still processing (if yes, re-enable)
         try {
           const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
           if (isProcessing) {
-            // Calculate response time
-            const responseTime = Date.now() - startTime;
             await buttonStateManager.enableButton(callbackData, userId, {
               resultText: '✅ Selesai',
               success: true,
@@ -1187,6 +1245,62 @@ bot.on(
             userId,
             callbackData,
             error: enableError.message,
+          });
+        }
+      }
+
+      // Log interaction (T097, FR-019, FR-020, FR-021)
+      // Only log successful interactions in finally (errors are logged in catch block)
+      if (!interactionLogged) {
+        // Only log if interaction was not already logged in catch block
+        try {
+          let buttonLabel = callbackData;
+          if (ctx.callbackQuery && ctx.callbackQuery.message) {
+            const message = ctx.callbackQuery.message;
+            if (message.text) {
+              buttonLabel = message.text.substring(0, 255);
+            }
+          }
+
+          let menuContext = 'main';
+          if (callbackData.startsWith('product_')) {
+            menuContext = 'products';
+          } else if (callbackData.startsWith('checkout_')) {
+            menuContext = 'checkout';
+          } else if (callbackData.startsWith('admin_')) {
+            menuContext = 'admin';
+          } else if (callbackData.startsWith('payment_')) {
+            menuContext = 'payment';
+          } else if (callbackData.startsWith('nav_')) {
+            menuContext = 'navigation';
+          } else if (callbackData.startsWith('nav_page_')) {
+            menuContext = 'pagination';
+          }
+
+          // Log successful interaction (don't await to avoid blocking)
+          interactionLogger
+            .logInteraction({
+              telegramUserId: userId,
+              buttonId: callbackData,
+              buttonLabel: buttonLabel,
+              responseTimeMs: responseTime,
+              menuContext: menuContext,
+              success: true,
+            })
+            .catch((logError) => {
+              // Silently ignore logging errors (non-critical)
+              logger.debug('Failed to log interaction', {
+                userId,
+                callbackData,
+                error: logError.message,
+              });
+            });
+        } catch (logError) {
+          // Silently ignore logging errors (non-critical)
+          logger.debug('Failed to log interaction in finally block', {
+            userId,
+            callbackData,
+            error: logError.message,
           });
         }
       }
