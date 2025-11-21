@@ -33,11 +33,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Create database migration 005_add_stock_update_history.js in src/lib/database/migrations/
-- [ ] T009 Run migration to add last_updated_by and update_history columns to stock table
-- [ ] T010 [P] Verify Redis connection and pub/sub capability for real-time stock updates
-- [ ] T011 [P] Verify environment variable loading for payment method configuration
-- [ ] T012 Verify existing bot.js structure can be extended with new modules
+- [x] T008 Create database migration 005_add_stock_update_history.js in src/lib/database/migrations/
+- [x] T009 Run migration to add last_updated_by and update_history columns to stock table
+- [x] T010 [P] Verify Redis connection and pub/sub capability for real-time stock updates
+- [x] T011 [P] Verify environment variable loading for payment method configuration
+- [x] T012 Verify existing bot.js structure can be extended with new modules
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -53,22 +53,22 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T013 [P] [US1] Integration test for morning greeting (6:00-11:59) in tests/integration/friday-greetings.test.js
-- [ ] T014 [P] [US1] Integration test for afternoon greeting (12:00-17:59) in tests/integration/friday-greetings.test.js
-- [ ] T015 [P] [US1] Integration test for evening greeting (18:00-23:59) in tests/integration/friday-greetings.test.js
-- [ ] T016 [P] [US1] Integration test for night greeting (0:00-5:59) in tests/integration/friday-greetings.test.js
-- [ ] T017 [P] [US1] Integration test for FRIDAY persona consistency in tests/integration/friday-greetings.test.js
-- [ ] T018 [P] [US1] Unit test for getTimeOfDay() in tests/unit/friday/persona-service.test.js
-- [ ] T019 [P] [US1] Unit test for greeting template selection in tests/unit/friday/persona-service.test.js
+- [x] T013 [P] [US1] Integration test for morning greeting (6:00-11:59) in tests/integration/friday-greetings.test.js
+- [x] T014 [P] [US1] Integration test for afternoon greeting (12:00-17:59) in tests/integration/friday-greetings.test.js
+- [x] T015 [P] [US1] Integration test for evening greeting (18:00-23:59) in tests/integration/friday-greetings.test.js
+- [x] T016 [P] [US1] Integration test for night greeting (0:00-5:59) in tests/integration/friday-greetings.test.js
+- [x] T017 [P] [US1] Integration test for FRIDAY persona consistency in tests/integration/friday-greetings.test.js
+- [x] T018 [P] [US1] Unit test for getTimeOfDay() in tests/unit/friday/persona-service.test.js
+- [x] T019 [P] [US1] Unit test for greeting template selection in tests/unit/friday/persona-service.test.js
 
 ### Implementation for User Story 1
 
-- [ ] T020 [P] [US1] Create greeting-templates.js with time-based greeting templates in src/lib/friday/greeting-templates.js
-- [ ] T021 [P] [US1] Create persona-formatter.js for FRIDAY message formatting in src/lib/friday/persona-formatter.js
-- [ ] T022 [US1] Implement persona-service.js with getGreeting() and getTimeOfDay() methods in src/lib/friday/persona-service.js
-- [ ] T023 [US1] Integrate FRIDAY greeting into /start command handler in src/bot.js
-- [ ] T024 [US1] Add error handling and validation for persona-service.js
-- [ ] T025 [US1] Add logging for FRIDAY greeting operations in src/lib/friday/persona-service.js
+- [x] T020 [P] [US1] Create greeting-templates.js with time-based greeting templates in src/lib/friday/greeting-templates.js
+- [x] T021 [P] [US1] Create persona-formatter.js for FRIDAY message formatting in src/lib/friday/persona-formatter.js
+- [x] T022 [US1] Implement persona-service.js with getGreeting() and getTimeOfDay() methods in src/lib/friday/persona-service.js
+- [x] T023 [US1] Integrate FRIDAY greeting into /start command handler in src/bot.js
+- [x] T024 [US1] Add error handling and validation for persona-service.js
+- [x] T025 [US1] Add logging for FRIDAY greeting operations in src/lib/friday/persona-service.js
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently. Customer can open bot and receive time-appropriate FRIDAY greeting.
 

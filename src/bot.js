@@ -23,6 +23,7 @@ const faqHandler = require('./lib/customer-service/faq-handler');
 const chatHandler = require('./lib/customer-service/chat-handler');
 const customerServiceRouter = require('./lib/customer-service/customer-service-router');
 const personalizationEngine = require('./lib/customer-service/personalization-engine');
+const personaService = require('./lib/friday/persona-service');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -143,8 +144,12 @@ bot.command(
         username: ctx.from.username,
       });
 
-      // Get personalized greeting (T143)
-      const greeting = await personalizationEngine.getPersonalizedGreeting(userId);
+      // Get FRIDAY personalized greeting (T023, User Story 1)
+      const fridayGreeting = await personaService.getGreeting(userId);
+
+      // Get personalized greeting (T143) - combine with FRIDAY greeting
+      const personalizedGreeting = await personalizationEngine.getPersonalizedGreeting(userId);
+      const greeting = fridayGreeting + '\n\n' + personalizedGreeting;
 
       // Check if store is open
       const storeOpen = await isStoreOpen();
