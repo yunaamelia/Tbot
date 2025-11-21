@@ -5,6 +5,8 @@
   "main": "src/bot.js",
   "scripts": {
     "start": "node src/bot.js",
+    "restart": "bash scripts/restart-bot.sh",
+    "restart:force": "bash scripts/restart-bot.sh --force",
     "server": "node server.js",
     "test": "jest --detectOpenHandles",
     "test:unit": "jest tests/unit --detectOpenHandles",

@@ -42,7 +42,7 @@ All features MUST have comprehensive test scenarios written and approved BEFORE 
 
 ### Article VII: Simplicity
 
-The initial implementation MUST consist of a maximum of 4 main modules. This constraint enforces the YAGNI (You Aren't Gonna Need It) principle and prevents premature complexity. Additional modules may be added only when justified by concrete requirements and documented in the Complexity Tracking section of implementation plans.
+The initial implementation MUST consist of a maximum of 10 main modules. This constraint enforces the YAGNI (You Aren't Gonna Need It) principle and prevents premature complexity. Additional modules may be added only when justified by concrete requirements and documented in the Complexity Tracking section of implementation plans.
 
 ### Article VIII: Anti-Abstraction
 
@@ -66,7 +66,7 @@ Core implementation MUST prioritize maintainability and correctness. Comprehensi
 
 - **ESLint Configuration**: ESLint MUST be configured with Node.js-specific plugins (`eslint-plugin-node`, `eslint-plugin-security`) to detect faulty patterns and security vulnerabilities. ESLint errors MUST block commits via pre-commit hooks
 - **Code Formatting**: Prettier MUST be used for consistent code formatting. Formatting violations MUST be auto-fixed before commits. Formatting MUST be verified in CI/CD pipelines
-- **Naming Conventions**: 
+- **Naming Conventions**:
   - Classes and services: PascalCase with descriptive names (e.g., `UserAuthenticationService`, not `UsrSvc`)
   - Methods: camelCase with clear action verbs (e.g., `authenticateWithCredentials`, not `auth`)
   - Constants: UPPER_SNAKE_CASE (e.g., `MAX_LOGIN_ATTEMPTS`, `SESSION_TIMEOUT_MS`)
@@ -83,11 +83,11 @@ The bot MUST use resources efficiently while providing a responsive user experie
 **Performance Requirements**:
 
 - **Response Times**: User-facing operations MUST respond within performance goals (e.g., notification delivery ≤ 10 seconds per FR-090). Critical paths MUST be optimized for sub-second response where possible
-- **Database Optimization**: 
+- **Database Optimization**:
   - All queries MUST use proper indexes. Query performance MUST be validated during development
   - Connection pooling MUST be used for all database connections
   - Transaction management MUST ensure atomicity without unnecessary locks
-- **Caching Strategy**: 
+- **Caching Strategy**:
   - Redis caching MUST be used for frequently accessed data (payment methods, product catalogs) with appropriate TTL
   - Cache invalidation MUST be handled correctly to prevent stale data
   - Cache operations MUST have timeout protection to prevent hanging

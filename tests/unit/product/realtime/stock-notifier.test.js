@@ -48,14 +48,19 @@ describe('Stock Notifier Unit Tests', () => {
 
   afterAll(async () => {
     const cleanupPromises = [];
+    const timeoutIds = [];
 
     try {
       // Cleanup test subscriber
       if (testSubscriber) {
+        const unsubscribeTimeout = new Promise((resolve) => {
+          const id = setTimeout(() => resolve(), 200);
+          timeoutIds.push(id);
+        });
         cleanupPromises.push(
           Promise.race([
             stockNotifier.unsubscribe(testSubscriber).catch(() => {}),
-            new Promise((resolve) => setTimeout(resolve, 200)),
+            unsubscribeTimeout,
           ])
         );
         testSubscriber = null;
@@ -69,23 +74,42 @@ describe('Stock Notifier Unit Tests', () => {
           redisSubscriber.removeAllListeners('error');
           redisSubscriber.removeAllListeners();
 
-          cleanupPromises.push(
-            Promise.race([
-              redisSubscriber.unsubscribe('stock:updated').catch(() => {}),
-              new Promise((resolve) => setTimeout(resolve, 200)),
-            ])
-          );
+          // Skip Redis operations in test environment to prevent hanging
+          if (process.env.NODE_ENV === 'test') {
+            // Force disconnect in test environment
+            try {
+              redisSubscriber.disconnect();
+            } catch (error) {
+              // Ignore disconnect errors
+            }
+          } else {
+            // Only perform unsubscribe/quit if not in test environment
+            const unsubscribeTimeout = new Promise((resolve) => {
+              const id = setTimeout(() => resolve(), 200);
+              timeoutIds.push(id);
+            });
+            cleanupPromises.push(
+              Promise.race([
+                redisSubscriber.unsubscribe('stock:updated').catch(() => {}),
+                unsubscribeTimeout,
+              ])
+            );
 
-          cleanupPromises.push(
-            Promise.race([
-              redisSubscriber.quit().catch(() => {
-                if (redisSubscriber) {
-                  return redisSubscriber.disconnect().catch(() => {});
-                }
-              }),
-              new Promise((resolve) => setTimeout(resolve, 200)),
-            ])
-          );
+            const quitTimeout = new Promise((resolve) => {
+              const id = setTimeout(() => resolve(), 200);
+              timeoutIds.push(id);
+            });
+            cleanupPromises.push(
+              Promise.race([
+                redisSubscriber.quit().catch(() => {
+                  if (redisSubscriber) {
+                    return redisSubscriber.disconnect().catch(() => {});
+                  }
+                }),
+                quitTimeout,
+              ])
+            );
+          }
         } catch (error) {
           // Ignore cleanup errors
         }
@@ -96,10 +120,16 @@ describe('Stock Notifier Unit Tests', () => {
     }
 
     // Wait for all cleanup to complete with timeout
-    await Promise.race([
-      Promise.all(cleanupPromises),
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]);
+    const finalTimeout = new Promise((resolve) => {
+      const id = setTimeout(() => resolve(), 500);
+      timeoutIds.push(id);
+    });
+    await Promise.race([Promise.all(cleanupPromises), finalTimeout]);
+
+    // Clear all timeouts
+    timeoutIds.forEach((id) => {
+      clearTimeout(id);
+    });
   }, 2000);
 
   describe('notifyStockUpdate()', () => {
@@ -136,7 +166,13 @@ describe('Stock Notifier Unit Tests', () => {
         await stockNotifier.notifyStockUpdate(productId, previousQuantity, newQuantity, adminId);
 
         // Wait for message (with timeout)
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        let waitTimeoutId;
+        await new Promise((resolve) => {
+          waitTimeoutId = setTimeout(() => resolve(), 500);
+        });
+        if (waitTimeoutId) {
+          clearTimeout(waitTimeoutId);
+        }
 
         // Verify message received (if Redis is working)
         if (receivedMessage) {
@@ -203,7 +239,13 @@ describe('Stock Notifier Unit Tests', () => {
         }
 
         // Wait for callback
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        let callbackTimeoutId;
+        await new Promise((resolve) => {
+          callbackTimeoutId = setTimeout(() => resolve(), 500);
+        });
+        if (callbackTimeoutId) {
+          clearTimeout(callbackTimeoutId);
+        }
 
         // Verify structure is correct
         expect(typeof callback).toBe('function');

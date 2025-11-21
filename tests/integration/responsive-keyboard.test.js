@@ -21,7 +21,7 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
     }
   }, 1000);
   describe('Given a menu with different numbers of items', () => {
-    test('When menu has 9 items, Then buttons are arranged in 3x3x2 pattern (3 rows of 3, then 1 row of 2 with Home/Back)', async () => {
+    test('When menu has 9 items, Then buttons are arranged in 3x3x3 pattern (3 rows of 3, then 1 row of 3 with Home/Help/Back)', async () => {
       const items = Array.from({ length: 9 }, (_, i) => ({
         text: `Item ${i + 1}`,
         callback_data: `item_${i + 1}`,
@@ -30,7 +30,7 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have 4 rows: 3 rows of 3 items + 1 row of 2 nav buttons
+      // Should have 4 rows: 3 rows of 3 items + 1 row of 3 nav buttons (Home/Help/Back)
       expect(keyboardRows.length).toBe(4);
 
       // First 3 rows should have 3 items each
@@ -38,13 +38,14 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       expect(keyboardRows[1].length).toBe(3);
       expect(keyboardRows[2].length).toBe(3);
 
-      // Last row should have 2 navigation buttons
-      expect(keyboardRows[3].length).toBe(2);
+      // Last row should have 3 navigation buttons (Home, Help, Back)
+      expect(keyboardRows[3].length).toBe(3);
       expect(keyboardRows[3][0].text).toMatch(/home|🏠/i);
-      expect(keyboardRows[3][1].text).toMatch(/back|◀️/i);
+      expect(keyboardRows[3][1].text).toMatch(/help|bantuan|❓/i);
+      expect(keyboardRows[3][2].text).toMatch(/back|◀️/i);
     });
 
-    test('When menu has 6 items, Then buttons are arranged in 3x2x2 pattern (3 rows of 2, then 1 row of 2 with Home/Back)', async () => {
+    test('When menu has 6 items, Then buttons are arranged in 3x2x3 pattern (3 rows of 2, then 1 row of 3 with Home/Help/Back)', async () => {
       const items = Array.from({ length: 6 }, (_, i) => ({
         text: `Item ${i + 1}`,
         callback_data: `item_${i + 1}`,
@@ -53,7 +54,7 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have 4 rows: 3 rows of 2 items + 1 row of 2 nav buttons
+      // Should have 4 rows: 3 rows of 2 items + 1 row of 3 nav buttons (Home/Help/Back)
       expect(keyboardRows.length).toBe(4);
 
       // First 3 rows should have 2 items each
@@ -61,13 +62,14 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       expect(keyboardRows[1].length).toBe(2);
       expect(keyboardRows[2].length).toBe(2);
 
-      // Last row should have 2 navigation buttons
-      expect(keyboardRows[3].length).toBe(2);
+      // Last row should have 3 navigation buttons (Home, Help, Back)
+      expect(keyboardRows[3].length).toBe(3);
       expect(keyboardRows[3][0].text).toMatch(/home|🏠/i);
-      expect(keyboardRows[3][1].text).toMatch(/back|◀️/i);
+      expect(keyboardRows[3][1].text).toMatch(/help|bantuan|❓/i);
+      expect(keyboardRows[3][2].text).toMatch(/back|◀️/i);
     });
 
-    test('When menu has 4 items, Then buttons are arranged in 3x2x1 pattern (2 rows of 2, then 1 row with Home/Back)', async () => {
+    test('When menu has 4 items, Then buttons are arranged in 3x2x3 pattern (2 rows of 2, then 1 row with Home/Help/Back)', async () => {
       const items = Array.from({ length: 4 }, (_, i) => ({
         text: `Item ${i + 1}`,
         callback_data: `item_${i + 1}`,
@@ -76,20 +78,21 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have 3 rows: 2 rows of 2 items + 1 row of 2 nav buttons
+      // Should have 3 rows: 2 rows of 2 items + 1 row of 3 nav buttons (Home/Help/Back)
       expect(keyboardRows.length).toBe(3);
 
       // First 2 rows should have 2 items each
       expect(keyboardRows[0].length).toBe(2);
       expect(keyboardRows[1].length).toBe(2);
 
-      // Last row should have 2 navigation buttons
-      expect(keyboardRows[2].length).toBe(2);
+      // Last row should have 3 navigation buttons (Home, Help, Back)
+      expect(keyboardRows[2].length).toBe(3);
       expect(keyboardRows[2][0].text).toMatch(/home|🏠/i);
-      expect(keyboardRows[2][1].text).toMatch(/back|◀️/i);
+      expect(keyboardRows[2][1].text).toMatch(/help|bantuan|❓/i);
+      expect(keyboardRows[2][2].text).toMatch(/back|◀️/i);
     });
 
-    test('When menu has 2 items, Then buttons are arranged in 3x1x1 pattern (1 row of 2, then 1 row with Home/Back)', async () => {
+    test('When menu has 2 items, Then buttons are arranged in 3x1x3 pattern (1 row of 2, then 1 row with Home/Help/Back)', async () => {
       const items = Array.from({ length: 2 }, (_, i) => ({
         text: `Item ${i + 1}`,
         callback_data: `item_${i + 1}`,
@@ -98,16 +101,17 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have 2 rows: 1 row of 2 items + 1 row of 2 nav buttons
+      // Should have 2 rows: 1 row of 2 items + 1 row of 3 nav buttons (Home/Help/Back)
       expect(keyboardRows.length).toBe(2);
 
       // First row should have 2 items
       expect(keyboardRows[0].length).toBe(2);
 
-      // Last row should have 2 navigation buttons
-      expect(keyboardRows[1].length).toBe(2);
+      // Last row should have 3 navigation buttons (Home, Help, Back)
+      expect(keyboardRows[1].length).toBe(3);
       expect(keyboardRows[1][0].text).toMatch(/home|🏠/i);
-      expect(keyboardRows[1][1].text).toMatch(/back|◀️/i);
+      expect(keyboardRows[1][1].text).toMatch(/help|bantuan|❓/i);
+      expect(keyboardRows[1][2].text).toMatch(/back|◀️/i);
     });
 
     test('When menu has incomplete rows (7 items), Then layout auto-balances to distribute items evenly across rows', async () => {
@@ -119,9 +123,9 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have navigation row
+      // Should have navigation row with 3 buttons (Home, Help, Back)
       const navRowIndex = keyboardRows.length - 1;
-      expect(keyboardRows[navRowIndex].length).toBe(2);
+      expect(keyboardRows[navRowIndex].length).toBe(3);
 
       // Item rows (excluding nav)
       const itemRows = keyboardRows.slice(0, navRowIndex);
@@ -137,16 +141,17 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       expect(totalItems).toBe(7);
     });
 
-    test('When menu has 0 items, Then it shows empty state with Home button only', async () => {
+    test('When menu has 0 items, Then it shows empty state with Home and Help buttons', async () => {
       const items = [];
 
       const keyboard = await keyboardBuilder.createKeyboard(items);
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
 
-      // Should have 1 row with Home button only
+      // Should have 1 row with Home and Help buttons (empty state - no Back button)
       expect(keyboardRows.length).toBe(1);
-      expect(keyboardRows[0].length).toBe(1);
+      expect(keyboardRows[0].length).toBe(2);
       expect(keyboardRows[0][0].text).toMatch(/home|🏠/i);
+      expect(keyboardRows[0][1].text).toMatch(/help|bantuan|❓/i);
     });
 
     test('When menu has >9 items, Then pagination is implemented', async () => {
@@ -171,7 +176,7 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
   });
 
   describe('Given any menu screen', () => {
-    test('When displayed, Then it includes fixed Home and Back navigation buttons in the last row', async () => {
+    test('When displayed, Then it includes fixed Home, Help, and Back navigation buttons in the last row', async () => {
       const items = Array.from({ length: 5 }, (_, i) => ({
         text: `Item ${i + 1}`,
         callback_data: `item_${i + 1}`,
@@ -181,9 +186,10 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
       const lastRow = keyboardRows[keyboardRows.length - 1];
 
-      expect(lastRow.length).toBe(2);
+      expect(lastRow.length).toBe(3);
       expect(lastRow[0].text).toMatch(/home|🏠/i);
-      expect(lastRow[1].text).toMatch(/back|◀️/i);
+      expect(lastRow[1].text).toMatch(/help|bantuan|❓/i);
+      expect(lastRow[2].text).toMatch(/back|◀️/i);
     });
   });
 
@@ -203,7 +209,9 @@ describe('Responsive Menu Navigation with Balanced Layout Integration Tests', ()
       const keyboardRows = keyboard.reply_markup.inline_keyboard;
       const navRow = keyboardRows[keyboardRows.length - 1];
 
-      expect(navRow[1].callback_data).toBe('nav_back');
+      // Help button is at index 1, Back button is at index 2
+      expect(navRow[1].callback_data).toBe('nav_help');
+      expect(navRow[2].callback_data).toBe('nav_back');
     });
   });
 });

@@ -46,9 +46,12 @@ class AdminCommands {
       if (args.length < 3 || args[0] !== 'update') {
         return {
           text:
-            `❌ <b>Format Perintah Salah</b>\n\n` +
-            `Format: /stock update &lt;product_id&gt; &lt;quantity&gt;\n\n` +
-            `Contoh: /stock update 1 10`,
+            `💡 <b>Update Stok Produk</b>\n\n` +
+            `📋 <b>Format:</b>\n` +
+            `<code>/admin stock update product_id quantity</code>\n\n` +
+            `📝 <b>Contoh:</b>\n` +
+            `<code>/admin stock update 1 50</code>\n\n` +
+            `💬 <i>Gunakan format di atas untuk mengupdate stok produk. Product ID adalah ID produk yang ingin diupdate.</i>`,
           parse_mode: 'HTML',
         };
       }
@@ -187,9 +190,9 @@ class AdminCommands {
 
   /**
    * Handle /addproduct command
-   * Format: /addproduct name|description|price|stock|category
+   * Starts wizard mode for adding products step-by-step
    * @param {number} telegramUserId Telegram user ID
-   * @param {string} commandArgs Command arguments
+   * @param {string} commandArgs Command arguments (legacy format still supported)
    * @returns {Promise<Object>} Response message
    */
   async handleAddProductCommand(telegramUserId, commandArgs) {
@@ -199,82 +202,78 @@ class AdminCommands {
 
       // Parse command arguments (format: name|description|price|stock|category)
       const args = commandArgs.trim();
-      if (!args) {
+
+      // If args provided, use legacy format (backward compatibility)
+      if (args) {
+        const parts = args.split('|').map((p) => p.trim());
+        if (parts.length < 4) {
+          return {
+            text:
+              `❌ <b>Format Perintah Salah</b>\n\n` +
+              `Format: /admin product add name|description|price|stock|category\n\n` +
+              `Minimal diperlukan: name|description|price|stock\n\n` +
+              `💡 <i>Atau gunakan mode wizard tanpa argumen untuk input step-by-step.</i>`,
+            parse_mode: 'HTML',
+          };
+        }
+
+        const [name, description, priceStr, stockStr, category] = parts;
+
+        if (!name || name.length === 0) {
+          throw new ValidationError('Nama produk harus diisi');
+        }
+
+        const price = parseFloat(priceStr);
+        if (isNaN(price) || price < 0) {
+          throw new ValidationError('Harga harus berupa angka positif');
+        }
+
+        const stock = parseInt(stockStr, 10);
+        if (isNaN(stock) || stock < 0) {
+          throw new ValidationError('Stok harus berupa angka non-negatif');
+        }
+
+        // Create product
+        const productData = {
+          name: name,
+          description: description || null,
+          price: price,
+          stock_quantity: stock,
+          category: category || null,
+          features: [],
+          media_files: [],
+          availability_status: stock > 0 ? 'available' : 'out_of_stock',
+        };
+
+        const product = await productService.createProduct(productData);
+
+        const productName = escapeHTML(product.name);
+        const message =
+          `✅ <b>Produk Berhasil Ditambahkan</b>\n\n` +
+          `ID: <b>${product.id}</b>\n` +
+          `Nama: <b>${productName}</b>\n` +
+          `Harga: <b>Rp ${price.toLocaleString('id-ID')}</b>\n` +
+          `Stok: <b>${stock}</b> unit\n` +
+          `Status: <b>${product.availability_status === 'available' ? 'Tersedia' : 'Habis'}</b>\n\n` +
+          `Produk telah ditambahkan dan tersedia untuk pelanggan.`;
+
+        logger.info('Product created via admin command', {
+          adminId: admin.id,
+          productId: product.id,
+          productName: product.name,
+        });
+
         return {
-          text:
-            `❌ <b>Format Perintah Salah</b>\n\n` +
-            `Format: /addproduct name|description|price|stock|category\n\n` +
-            `Contoh: /addproduct GitHub Copilot|Akses GitHub Copilot Individual|50000|10|GitHub\n\n` +
-            `Catatan:\n` +
-            `- Gunakan | sebagai pemisah\n` +
-            `- Price dalam angka (tanpa titik atau koma)\n` +
-            `- Stock dalam angka\n` +
-            `- Category opsional`,
+          text: message,
           parse_mode: 'HTML',
         };
       }
 
-      const parts = args.split('|').map((p) => p.trim());
-      if (parts.length < 4) {
-        return {
-          text:
-            `❌ <b>Format Perintah Salah</b>\n\n` +
-            `Format: /addproduct name|description|price|stock|category\n\n` +
-            `Minimal diperlukan: name|description|price|stock`,
-          parse_mode: 'HTML',
-        };
-      }
+      // No args provided - start wizard mode
+      const wizardHandler = require('./wizard/product-add-wizard-handler');
+      const wizardMessage = await wizardHandler.startWizardFlow(telegramUserId);
 
-      const [name, description, priceStr, stockStr, category] = parts;
-
-      if (!name || name.length === 0) {
-        throw new ValidationError('Nama produk harus diisi');
-      }
-
-      const price = parseFloat(priceStr);
-      if (isNaN(price) || price < 0) {
-        throw new ValidationError('Harga harus berupa angka positif');
-      }
-
-      const stock = parseInt(stockStr, 10);
-      if (isNaN(stock) || stock < 0) {
-        throw new ValidationError('Stok harus berupa angka non-negatif');
-      }
-
-      // Create product
-      const productData = {
-        name: name,
-        description: description || null,
-        price: price,
-        stock_quantity: stock,
-        category: category || null,
-        features: [],
-        media_files: [],
-        availability_status: stock > 0 ? 'available' : 'out_of_stock',
-      };
-
-      const product = await productService.createProduct(productData);
-
-      const productName = escapeHTML(product.name);
-      const message =
-        `✅ <b>Produk Berhasil Ditambahkan</b>\n\n` +
-        `ID: <b>${product.id}</b>\n` +
-        `Nama: <b>${productName}</b>\n` +
-        `Harga: <b>Rp ${price.toLocaleString('id-ID')}</b>\n` +
-        `Stok: <b>${stock}</b> unit\n` +
-        `Status: <b>${product.availability_status === 'available' ? 'Tersedia' : 'Habis'}</b>\n\n` +
-        `Produk telah ditambahkan dan tersedia untuk pelanggan.`;
-
-      logger.info('Product created via admin command', {
-        adminId: admin.id,
-        productId: product.id,
-        productName: product.name,
-      });
-
-      return {
-        text: message,
-        parse_mode: 'HTML',
-      };
+      return wizardMessage;
     } catch (error) {
       logger.error('Error handling addproduct command', error, { telegramUserId, commandArgs });
       if (error instanceof ValidationError || error.name === 'UnauthorizedError') {

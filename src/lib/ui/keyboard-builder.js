@@ -1,21 +1,85 @@
 /**
  * Responsive Keyboard Builder - Creates balanced inline keyboards with navigation
  *
- * Tasks: T036, T037, T041, T042, T042A, T042B
- * Requirements: FR-003, FR-004, FR-005, FR-021
- * Feature: 002-friday-enhancement
+ * Tasks: T036, T037, T041, T042, T042A, T042B, T020, T021, T022, T024, T025, T026
+ * Requirements: FR-003, FR-004, FR-005, FR-021, FR-001, FR-002
+ * Feature: 002-friday-enhancement, 003-enhanced-keyboard
  */
 
 const { Markup } = require('telegraf');
 const { balanceLayout } = require('./layout-balancer');
 const { createNavigationRow } = require('./navigation-handler');
+const roleFilter = require('../security/role-filter');
 const redisClient = require('../shared/redis-client');
 const { ValidationError } = require('../shared/errors');
 const logger = require('../shared/logger').child('keyboard-builder');
 
 const MAX_ITEMS_PER_SCREEN = 9;
 const MAX_ITEMS_PER_ROW = 3;
+const MAX_LABEL_LENGTH = 20; // Max characters before truncation (FR-001)
+const MAX_BUTTON_BYTES = 64; // Telegram API limit per button
 const CACHE_TTL = 3600; // 1 hour
+
+// Visual emoji helpers for color coding (T072, FR-012, FR-013)
+const COLOR_EMOJIS = {
+  primary: '🔵', // Blue circle for primary actions
+  secondary: '⚪️', // White circle for secondary actions
+  danger: '🔴', // Red circle for danger actions
+};
+
+/**
+ * Truncate label to max length with ellipsis if needed (T021, FR-001)
+ * @param {string} label - Label text
+ * @param {number} maxLength - Maximum length before truncation (default: MAX_LABEL_LENGTH)
+ * @returns {string} Truncated label with ellipsis if needed
+ */
+function truncateLabel(label, maxLength = MAX_LABEL_LENGTH) {
+  if (typeof label !== 'string') {
+    return '';
+  }
+
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  // If maxLength is less than 3, truncate without ellipsis
+  if (maxLength < 3) {
+    return label.substring(0, maxLength);
+  }
+
+  // Truncate with ellipsis
+  return label.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Validate and sanitize button label (T024, FR-001)
+ * @param {string} label - Button label
+ * @returns {string} Sanitized label
+ * @throws {ValidationError} If label is invalid
+ */
+function validateButtonLabel(label) {
+  if (typeof label !== 'string') {
+    throw new ValidationError('Button label must be a string');
+  }
+
+  // Check byte length (Telegram API limit is 64 bytes)
+  const byteLength = Buffer.byteLength(label, 'utf8');
+  if (byteLength > MAX_BUTTON_BYTES) {
+    // Truncate to fit within byte limit
+    let truncated = label;
+    while (Buffer.byteLength(truncated, 'utf8') > MAX_BUTTON_BYTES && truncated.length > 0) {
+      truncated = truncated.substring(0, truncated.length - 1);
+    }
+    // Add ellipsis if truncated
+    if (truncated.length < label.length) {
+      truncated = truncateLabel(truncated, truncated.length - 3) + '...';
+    }
+    return truncated;
+  }
+
+  // Truncate long labels for UI consistency (max 20 characters)
+  return truncateLabel(label, MAX_LABEL_LENGTH);
+}
 
 /**
  * Create responsive inline keyboard with auto-balanced layout
@@ -24,70 +88,138 @@ const CACHE_TTL = 3600; // 1 hour
  * @param {boolean} options.includeNavigation - Include Home/Back buttons (default: true)
  * @param {number} options.maxItemsPerRow - Maximum items per row (default: 3)
  * @param {string} options.pattern - Override pattern (optional)
+ * @param {number} options.telegramUserId - Telegram user ID for role-based filtering (optional, T052)
  * @returns {Object} Telegraf inline keyboard markup
  */
 async function createKeyboard(items, options = {}) {
   try {
-    // Validate items
+    // Validate items array structure (T025) - check array type first
     if (!Array.isArray(items)) {
       throw new ValidationError('Items must be an array');
     }
 
-    const { includeNavigation = true, maxItemsPerRow = MAX_ITEMS_PER_ROW } = options;
+    // Log keyboard generation (T026)
+    logger.debug('Creating keyboard', {
+      itemCount: items.length,
+      options,
+    });
 
-    // Handle empty menu state (0 items)
-    if (items.length === 0) {
-      logger.info('Empty menu state - showing Home button only');
-      return Markup.inlineKeyboard([[Markup.button.callback('🏠 Home', 'nav_home')]]);
+    const {
+      includeNavigation = true,
+      maxItemsPerRow = MAX_ITEMS_PER_ROW,
+      telegramUserId,
+    } = options;
+
+    // Role-based filtering (T052, T053, FR-008): Filter items by user role before keyboard creation
+    let filteredItems = items;
+    if (telegramUserId) {
+      try {
+        const userRole = await roleFilter.getUserRole(telegramUserId);
+        filteredItems = roleFilter.filterMenuItemsByRole(items, userRole.role);
+
+        logger.debug('Menu items filtered by role', {
+          telegramUserId,
+          originalCount: items.length,
+          filteredCount: filteredItems.length,
+          userRole: userRole.role,
+          source: userRole.source,
+        });
+      } catch (roleError) {
+        // Role filtering failed - use fail-safe: filter out admin-only items
+        logger.warn('Role filtering failed, using fail-safe', {
+          telegramUserId,
+          error: roleError.message,
+        });
+        filteredItems = roleFilter.filterMenuItemsByRole(items, 'regular'); // Fail-safe
+      }
     }
 
-    // Handle pagination for >9 items
-    if (items.length > MAX_ITEMS_PER_SCREEN) {
-      logger.info('Menu exceeds max items, implementing pagination', { totalItems: items.length });
-      return createPaginatedKeyboard(items, options);
+    // Handle empty menu state (0 items) - T033: Show Home and Help buttons (FR-003, FR-005)
+    if (filteredItems.length === 0) {
+      logger.info('Empty menu state - showing Home and Help buttons');
+      const { isMainMenu = false } = options;
+      const navButtons = createNavigationRow({ isMainMenu });
+      // Show only Home and Help buttons for empty state (no Back button)
+      const emptyStateButtons = navButtons.filter((btn) => btn.callback_data !== 'nav_back');
+      return Markup.inlineKeyboard([emptyStateButtons]);
+    }
+
+    // Validate non-empty items array (T025)
+    validateMenuItems(filteredItems);
+
+    // Handle pagination for >9 items (T022, FR-002: only show at 10+ items, not at exactly 9)
+    if (filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+      logger.info('Menu exceeds max items, implementing pagination', {
+        totalItems: filteredItems.length,
+      });
+      return createPaginatedKeyboard(filteredItems, options);
     }
 
     // Try to get from cache (async, but we'll handle it gracefully)
-    const cacheKey = `menu:layout:${items.length}:${JSON.stringify(items.map((i) => i.callback_data))}`;
+    // Include role info in cache key if filtering is enabled
+    const cacheKey = telegramUserId
+      ? `menu:layout:${filteredItems.length}:${telegramUserId}:${JSON.stringify(filteredItems.map((i) => i.callback_data))}`
+      : `menu:layout:${filteredItems.length}:${JSON.stringify(filteredItems.map((i) => i.callback_data))}`;
     const cached = await getCachedKeyboard(cacheKey);
     if (cached) {
       logger.debug('Keyboard layout retrieved from cache', { cacheKey });
       return cached;
     }
 
-    // Determine layout pattern based on item count
+    // Determine layout pattern based on item count (using filtered items)
     let rows = [];
 
-    if (items.length === 9) {
+    if (filteredItems.length === 9) {
       // 3x3x2 pattern: 3 rows of 3, then nav row
-      rows = [items.slice(0, 3), items.slice(3, 6), items.slice(6, 9)];
-    } else if (items.length === 6) {
+      rows = [filteredItems.slice(0, 3), filteredItems.slice(3, 6), filteredItems.slice(6, 9)];
+    } else if (filteredItems.length === 6) {
       // 3x2x2 pattern: 3 rows of 2, then nav row
-      rows = [items.slice(0, 2), items.slice(2, 4), items.slice(4, 6)];
-    } else if (items.length === 4) {
+      rows = [filteredItems.slice(0, 2), filteredItems.slice(2, 4), filteredItems.slice(4, 6)];
+    } else if (filteredItems.length === 4) {
       // 3x2x1 pattern: 2 rows of 2, then nav row
-      rows = [items.slice(0, 2), items.slice(2, 4)];
-    } else if (items.length === 2) {
+      rows = [filteredItems.slice(0, 2), filteredItems.slice(2, 4)];
+    } else if (filteredItems.length === 2) {
       // 3x1x1 pattern: 1 row of 2, then nav row
-      rows = [items];
+      rows = [filteredItems];
     } else {
       // Auto-balance for other counts (e.g., 7 items)
-      rows = balanceLayout(items, maxItemsPerRow);
+      rows = balanceLayout(filteredItems, maxItemsPerRow);
     }
 
-    // Convert items to Markup buttons (only once)
+    // Convert items to Markup buttons with label truncation and color coding (T020, T021, T024, T072, FR-012, FR-013)
     rows = rows.map((row) =>
       row.map((item) => {
         if (typeof item === 'object' && item.text && item.callback_data) {
-          return Markup.button.callback(item.text, item.callback_data);
+          try {
+            let buttonText = item.text;
+
+            // Add color coding emoji if color_type is specified (T072, FR-013)
+            if (item.color_type && COLOR_EMOJIS[item.color_type]) {
+              // Only add emoji if not already present in text
+              if (!buttonText.includes(COLOR_EMOJIS[item.color_type])) {
+                buttonText = `${COLOR_EMOJIS[item.color_type]} ${buttonText}`;
+              }
+            }
+
+            // Validate and truncate label if needed
+            const truncatedLabel = validateButtonLabel(buttonText);
+            return Markup.button.callback(truncatedLabel, item.callback_data);
+          } catch (error) {
+            logger.error('Error validating button label', error, { label: item.text });
+            // Fallback to original label or empty string
+            const fallbackLabel =
+              typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+            return Markup.button.callback(fallbackLabel, item.callback_data);
+          }
         }
         return item;
       })
     );
 
-    // Add navigation row if requested
+    // Add navigation row if requested (T033: includes Help button)
     if (includeNavigation) {
-      rows.push(createNavigationRow());
+      const { isMainMenu = false } = options;
+      rows.push(createNavigationRow({ isMainMenu }));
     }
 
     const keyboard = Markup.inlineKeyboard(rows);
@@ -95,10 +227,40 @@ async function createKeyboard(items, options = {}) {
     // Cache the keyboard
     cacheKeyboard(cacheKey, keyboard);
 
-    logger.debug('Keyboard created', {
-      itemCount: items.length,
+    // Cache items list for pagination navigation (T091)
+    if (telegramUserId && filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+      try {
+        const redis = redisClient.getRedis();
+        if (redis && process.env.NODE_ENV !== 'test') {
+          // Store items list with message_id context for pagination
+          // In production, you'd store this when creating the keyboard
+          // For now, we'll cache it with a generic key
+          const itemsCacheKey = `menu:items:${telegramUserId}:${Date.now()}`;
+          await redis.set(itemsCacheKey, JSON.stringify(filteredItems), 'EX', 3600); // 1 hour TTL
+          logger.debug('Items list cached for pagination', {
+            telegramUserId,
+            itemsCount: filteredItems.length,
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to cache items list for pagination', {
+          telegramUserId,
+          error: error.message,
+        });
+      }
+    }
+
+    // Log keyboard generation details (T026)
+    const layoutPattern = `${filteredItems.length} items → ${rows.length - (includeNavigation ? 1 : 0)} rows`;
+    logger.info('Keyboard created', {
+      originalItemCount: items.length,
+      filteredItemCount: filteredItems.length,
+      itemCount: filteredItems.length,
       rowCount: rows.length,
+      itemRowCount: rows.length - (includeNavigation ? 1 : 0),
+      layoutPattern,
       includeNavigation,
+      roleFiltered: !!telegramUserId,
     });
 
     return keyboard;
@@ -109,27 +271,89 @@ async function createKeyboard(items, options = {}) {
 }
 
 /**
+ * Validate menu items array (T025)
+ * @param {Array} items - Menu items
+ * @throws {ValidationError} If items are invalid
+ */
+function validateMenuItems(items) {
+  if (!Array.isArray(items)) {
+    throw new ValidationError('Items must be an array');
+  }
+
+  // Validate each item
+  items.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new ValidationError(`Item at index ${index} must be an object`);
+    }
+
+    if (!item.callback_data || typeof item.callback_data !== 'string') {
+      throw new ValidationError(`Item at index ${index} must have a valid callback_data string`);
+    }
+
+    // text is optional, but if provided should be a string
+    if (item.text !== undefined && typeof item.text !== 'string') {
+      throw new ValidationError(`Item at index ${index} text must be a string if provided`);
+    }
+  });
+}
+
+/**
  * Create paginated keyboard for menus with >9 items
  * @param {Array<Object>} items - All items
  * @param {Object} options - Options
  * @param {number} options.page - Current page (default: 0)
  * @returns {Object} Paginated keyboard
  */
-function createPaginatedKeyboard(items, options = {}) {
-  const { page = 0, includeNavigation = true } = options;
+async function createPaginatedKeyboard(items, options = {}) {
+  const { page = 0, includeNavigation = true, telegramUserId } = options;
+
+  // Role-based filtering for pagination (T052, T053)
+  let filteredItems = items;
+  if (telegramUserId) {
+    try {
+      const userRole = await roleFilter.getUserRole(telegramUserId);
+      filteredItems = roleFilter.filterMenuItemsByRole(items, userRole.role);
+    } catch (roleError) {
+      logger.warn('Role filtering failed in pagination, using fail-safe', {
+        telegramUserId,
+        error: roleError.message,
+      });
+      filteredItems = roleFilter.filterMenuItemsByRole(items, 'regular'); // Fail-safe
+    }
+  }
   const itemsPerPage = MAX_ITEMS_PER_SCREEN;
-  const totalPages = Math.ceil(items.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const startIndex = page * itemsPerPage;
 
   // Strictly limit to MAX_ITEMS_PER_SCREEN items per page
-  const pageItems = items.slice(startIndex, startIndex + itemsPerPage);
+  const pageItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
 
   // Create keyboard for current page - balanceLayout will distribute these items
   const balancedRows = balanceLayout(pageItems, MAX_ITEMS_PER_ROW);
   const rows = balancedRows.map((row) =>
     row.map((item) => {
       if (typeof item === 'object' && item.text && item.callback_data) {
-        return Markup.button.callback(item.text, item.callback_data);
+        try {
+          let buttonText = item.text;
+
+          // Add color coding emoji if color_type is specified (T072, FR-013)
+          if (item.color_type && COLOR_EMOJIS[item.color_type]) {
+            // Only add emoji if not already present in text
+            if (!buttonText.includes(COLOR_EMOJIS[item.color_type])) {
+              buttonText = `${COLOR_EMOJIS[item.color_type]} ${buttonText}`;
+            }
+          }
+
+          // Validate and truncate label if needed (T020, T021, T024)
+          const truncatedLabel = validateButtonLabel(buttonText);
+          return Markup.button.callback(truncatedLabel, item.callback_data);
+        } catch (error) {
+          logger.error('Error validating button label in pagination', error, { label: item.text });
+          // Fallback to original label or empty string
+          const fallbackLabel =
+            typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+          return Markup.button.callback(fallbackLabel, item.callback_data);
+        }
       }
       return item;
     })
@@ -151,7 +375,19 @@ function createPaginatedKeyboard(items, options = {}) {
       ...limitedBalancedRows.map((row) =>
         row.map((item) => {
           if (typeof item === 'object' && item.text && item.callback_data) {
-            return Markup.button.callback(item.text, item.callback_data);
+            try {
+              // Validate and truncate label if needed (T020, T021, T024)
+              const truncatedLabel = validateButtonLabel(item.text);
+              return Markup.button.callback(truncatedLabel, item.callback_data);
+            } catch (error) {
+              logger.error('Error validating button label in pagination limit', error, {
+                label: item.text,
+              });
+              // Fallback to original label or empty string
+              const fallbackLabel =
+                typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+              return Markup.button.callback(fallbackLabel, item.callback_data);
+            }
           }
           return item;
         })
@@ -172,9 +408,10 @@ function createPaginatedKeyboard(items, options = {}) {
     lastRow.push(Markup.button.callback('Selanjutnya ▶️', `nav_page_${page + 1}`));
   }
 
-  // Add Home/Back buttons to the same row if requested
+  // Add Home/Help/Back buttons to the same row if requested (T033: includes Help button)
   if (includeNavigation) {
-    const navButtons = createNavigationRow();
+    const { isMainMenu = false } = options;
+    const navButtons = createNavigationRow({ isMainMenu });
     lastRow.push(...navButtons);
   }
 
@@ -182,6 +419,39 @@ function createPaginatedKeyboard(items, options = {}) {
   if (lastRow.length > 0) {
     rows.push(lastRow);
   }
+
+  // Cache items list for pagination navigation (T091)
+  if (telegramUserId && filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+    try {
+      const redis = redisClient.getRedis();
+      if (redis && process.env.NODE_ENV !== 'test') {
+        // Store items list with message_id context for pagination
+        const itemsCacheKey = `menu:items:${telegramUserId}:${Date.now()}`;
+        await redis.set(itemsCacheKey, JSON.stringify(filteredItems), 'EX', 3600); // 1 hour TTL
+        logger.debug('Items list cached for pagination', {
+          telegramUserId,
+          itemsCount: filteredItems.length,
+          page,
+          totalPages,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to cache items list for pagination', {
+        telegramUserId,
+        error: error.message,
+      });
+    }
+  }
+
+  // Log pagination operations (T095)
+  logger.info('Paginated keyboard created', {
+    totalItems: filteredItems.length,
+    page,
+    totalPages,
+    itemsPerPage,
+    startIndex,
+    endIndex: Math.min(startIndex + itemsPerPage, filteredItems.length),
+  });
 
   return Markup.inlineKeyboard(rows);
 }
@@ -252,4 +522,7 @@ async function cacheKeyboard(cacheKey, keyboard) {
 module.exports = {
   createKeyboard,
   createPaginatedKeyboard,
+  truncateLabel, // Export for unit tests (T019)
+  validateButtonLabel, // Export for unit tests
+  COLOR_EMOJIS, // Export for testing and external use (T072, FR-012, FR-013)
 };
