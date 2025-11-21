@@ -797,6 +797,83 @@ bot.catch((err, ctx) => {
   }
 });
 
+/**
+ * Graceful shutdown handler
+ * Closes all connections and resources before exiting
+ * @param {string} signal Signal received (SIGINT, SIGTERM)
+ * @returns {Promise<void>}
+ */
+async function gracefulShutdown(signal) {
+  logger.info(`Received ${signal}, shutting down gracefully...`);
+
+  try {
+    // Stop catalog sync listener
+    try {
+      const catalogSync = require('./lib/product/realtime/catalog-sync');
+      await Promise.race([
+        catalogSync.stopListening(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error stopping catalog sync listener', error);
+    }
+
+    // Stop checkout timeout scheduler
+    try {
+      const checkoutTimeout = require('./lib/order/checkout-timeout');
+      checkoutTimeout.stopCleanupScheduler();
+    } catch (error) {
+      logger.error('Error stopping checkout timeout scheduler', error);
+    }
+
+    // Stop notification retry scheduler
+    try {
+      const notificationRetryScheduler = require('./lib/admin/notification-retry-scheduler');
+      notificationRetryScheduler.stopScheduler();
+    } catch (error) {
+      logger.error('Error stopping notification retry scheduler', error);
+    }
+
+    // Stop Telegram bot
+    try {
+      await Promise.race([
+        bot.stop(signal),
+        new Promise((resolve) => setTimeout(resolve, 3000)), // 3s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error stopping bot', error);
+    }
+
+    // Close database connections
+    try {
+      const { closeDb } = require('./lib/database/db-connection');
+      await Promise.race([
+        closeDb(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error closing database connections', error);
+    }
+
+    // Close Redis connections
+    try {
+      const redisClient = require('./lib/shared/redis-client');
+      await Promise.race([
+        redisClient.closeRedis(),
+        new Promise((resolve) => setTimeout(resolve, 2000)), // 2s timeout
+      ]);
+    } catch (error) {
+      logger.error('Error closing Redis connections', error);
+    }
+
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown', error);
+    process.exit(1);
+  }
+}
+
 // Launch bot if this file is run directly
 if (require.main === module) {
   bot
@@ -827,25 +904,13 @@ if (require.main === module) {
       process.exit(1);
     });
 
-  // Graceful shutdown
-  process.once('SIGINT', async () => {
-    try {
-      const catalogSync = require('./lib/product/realtime/catalog-sync');
-      await catalogSync.stopListening();
-    } catch (error) {
-      logger.error('Error stopping catalog sync listener', error);
-    }
-    bot.stop('SIGINT');
-  });
+  // Register shutdown handlers
+  process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-  process.once('SIGTERM', async () => {
-    try {
-      const catalogSync = require('./lib/product/realtime/catalog-sync');
-      await catalogSync.stopListening();
-    } catch (error) {
-      logger.error('Error stopping catalog sync listener', error);
-    }
-    bot.stop('SIGTERM');
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
   });
 }
 
