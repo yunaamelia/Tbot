@@ -155,15 +155,25 @@ class ProductRepository {
    * @param {string} availabilityStatus New availability status
    * @returns {Promise<void>}
    */
-  async updateAvailabilityStatus(productId, availabilityStatus) {
+  /**
+   * Update product availability status
+   * @param {number} productId Product ID
+   * @param {string} availabilityStatus New availability status
+   * @param {Function} trx Optional transaction function
+   * @returns {Promise<void>}
+   */
+  async updateAvailabilityStatus(productId, availabilityStatus, trx = null) {
     try {
-      await table('products').where('id', productId).update({
+      const query = trx || table('products');
+      await query.where('id', productId).update({
         availability_status: availabilityStatus,
         updated_at: new Date(),
       });
 
-      // Invalidate cache
-      await this.invalidateCache(productId);
+      // Invalidate cache only if not in transaction (T085)
+      if (!trx) {
+        await this.invalidateCache(productId);
+      }
     } catch (error) {
       logger.error('Error updating availability status', error, { productId, availabilityStatus });
       throw error;
@@ -171,20 +181,24 @@ class ProductRepository {
   }
 
   /**
-   * Update product stock quantity
+   * Update product stock quantity (T085)
    * @param {number} productId Product ID
    * @param {number} stockQuantity New stock quantity
+   * @param {Function} trx Optional transaction function
    * @returns {Promise<void>}
    */
-  async updateStockQuantity(productId, stockQuantity) {
+  async updateStockQuantity(productId, stockQuantity, trx = null) {
     try {
-      await table('products').where('id', productId).update({
+      const query = trx || table('products');
+      await query.where('id', productId).update({
         stock_quantity: stockQuantity,
         updated_at: new Date(),
       });
 
-      // Invalidate cache
-      await this.invalidateCache(productId);
+      // Invalidate cache only if not in transaction (T085)
+      if (!trx) {
+        await this.invalidateCache(productId);
+      }
     } catch (error) {
       logger.error('Error updating stock quantity', error, { productId, stockQuantity });
       throw error;

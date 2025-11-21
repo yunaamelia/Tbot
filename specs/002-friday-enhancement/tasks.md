@@ -190,27 +190,27 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T072 [P] [US5] Integration test for stock update reflecting in catalog within 2 seconds in tests/integration/stock-realtime.test.js
-- [ ] T073 [P] [US5] Integration test for automatic availability status change when stock reaches zero in tests/integration/stock-realtime.test.js
-- [ ] T074 [P] [US5] Integration test for automatic availability status change when stock added to out-of-stock product in tests/integration/stock-realtime.test.js
-- [ ] T075 [P] [US5] Integration test for customer seeing updated stock on next interaction in tests/integration/stock-realtime.test.js
-- [ ] T076 [P] [US5] Integration test for validation error on negative stock in tests/integration/stock-realtime.test.js
-- [ ] T077 [P] [US5] Unit test for Redis pub/sub notification publishing in tests/unit/product/realtime/stock-notifier.test.js
-- [ ] T078 [P] [US5] Unit test for catalog synchronization logic in tests/unit/product/realtime/catalog-sync.test.js
-- [ ] T078A [P] [US5] Integration test for concurrent stock updates preventing race conditions in tests/integration/stock-realtime.test.js
+- [x] T072 [P] [US5] Integration test for stock update reflecting in catalog within 2 seconds in tests/integration/stock-realtime.test.js
+- [x] T073 [P] [US5] Integration test for automatic availability status change when stock reaches zero in tests/integration/stock-realtime.test.js
+- [x] T074 [P] [US5] Integration test for automatic availability status change when stock added to out-of-stock product in tests/integration/stock-realtime.test.js
+- [x] T075 [P] [US5] Integration test for customer seeing updated stock on next interaction in tests/integration/stock-realtime.test.js
+- [x] T076 [P] [US5] Integration test for validation error on negative stock in tests/integration/stock-realtime.test.js
+- [x] T077 [P] [US5] Unit test for Redis pub/sub notification publishing in tests/unit/product/realtime/stock-notifier.test.js
+- [x] T078 [P] [US5] Unit test for catalog synchronization logic in tests/unit/product/realtime/catalog-sync.test.js
+- [x] T078A [P] [US5] Integration test for concurrent stock updates preventing race conditions in tests/integration/stock-realtime.test.js
 
 ### Implementation for User Story 5
 
-- [ ] T079 [P] [US5] Create stock-notifier.js with notifyStockUpdate() and subscribeToUpdates() in src/lib/product/realtime/stock-notifier.js
-- [ ] T080 [P] [US5] Create catalog-sync.js with syncCatalog() method in src/lib/product/realtime/catalog-sync.js
-- [ ] T081 [US5] Extend stock-manager.js to publish Redis notifications on stock updates in src/lib/product/stock-manager.js
-- [ ] T082 [US5] Add last_updated_by tracking to stock updates in src/lib/product/stock-manager.js
-- [ ] T083 [US5] Add update_history JSON field updates in src/lib/product/stock-manager.js
-- [ ] T084 [US5] Integrate catalog sync subscriber to listen for stock:updated channel in src/lib/product/realtime/catalog-sync.js
-- [ ] T085 [US5] Add cache invalidation on stock updates in src/lib/product/product-repository.js
-- [ ] T086 [US5] Add error handling for Redis pub/sub failures
-- [ ] T087 [US5] Add logging for stock update notifications and catalog sync operations
-- [ ] T087A [US5] Implement database transactions for atomic stock updates to prevent race conditions in src/lib/product/stock-manager.js
+- [x] T079 [P] [US5] Create stock-notifier.js with notifyStockUpdate() and subscribeToUpdates() in src/lib/product/realtime/stock-notifier.js
+- [x] T080 [P] [US5] Create catalog-sync.js with syncCatalog() method in src/lib/product/realtime/catalog-sync.js
+- [x] T081 [US5] Extend stock-manager.js to publish Redis notifications on stock updates in src/lib/product/stock-manager.js
+- [x] T082 [US5] Add last_updated_by tracking to stock updates in src/lib/product/stock-manager.js
+- [x] T083 [US5] Add update_history JSON field updates in src/lib/product/stock-manager.js
+- [x] T084 [US5] Integrate catalog sync subscriber to listen for stock:updated channel in src/lib/product/realtime/catalog-sync.js
+- [x] T085 [US5] Add cache invalidation on stock updates in src/lib/product/product-repository.js
+- [x] T086 [US5] Add error handling for Redis pub/sub failures
+- [x] T087 [US5] Add logging for stock update notifications and catalog sync operations
+- [x] T087A [US5] Implement database transactions for atomic stock updates to prevent race conditions in src/lib/product/stock-manager.js
 
 **Checkpoint**: At this point, User Story 5 should be fully functional. Stock updates reflect immediately in customer catalog.
 
@@ -226,25 +226,25 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T088 [P] [US6] Integration test for automatic QRIS verification success in tests/integration/qris-payment.test.js
-- [X] T089 [P] [US6] Integration test for automatic QRIS verification failure triggering manual fallback in tests/integration/qris-payment.test.js
-- [X] T090 [P] [US6] Integration test for automatic QRIS verification timeout triggering manual fallback in tests/integration/qris-payment.test.js
-- [X] T091 [P] [US6] Integration test for manual verification workflow when automatic fails in tests/integration/qris-payment.test.js
-- [X] T092 [P] [US6] Integration test for customer confirmation after payment verification in tests/integration/qris-payment.test.js
-- [X] T093 [P] [US6] Integration test for immediate manual routing when automatic unavailable in tests/integration/qris-payment.test.js
+- [x] T088 [P] [US6] Integration test for automatic QRIS verification success in tests/integration/qris-payment.test.js
+- [x] T089 [P] [US6] Integration test for automatic QRIS verification failure triggering manual fallback in tests/integration/qris-payment.test.js
+- [x] T090 [P] [US6] Integration test for automatic QRIS verification timeout triggering manual fallback in tests/integration/qris-payment.test.js
+- [x] T091 [P] [US6] Integration test for manual verification workflow when automatic fails in tests/integration/qris-payment.test.js
+- [x] T092 [P] [US6] Integration test for customer confirmation after payment verification in tests/integration/qris-payment.test.js
+- [x] T093 [P] [US6] Integration test for immediate manual routing when automatic unavailable in tests/integration/qris-payment.test.js
 
 ### Implementation for User Story 6
 
-- [X] T094 [US6] Enhance qris-handler.js to attempt automatic verification first in src/lib/payment/qris-handler.js
-- [X] T095 [US6] Add 5-minute timeout for automatic QRIS verification in src/lib/payment/qris-handler.js
-- [X] T096 [US6] Implement automatic fallback to manual verification on failure/timeout in src/lib/payment/qris-handler.js
-- [X] T097 [US6] Enhance manual-verification.js to handle QRIS fallback cases in src/lib/payment/manual-verification.js
-- [X] T098 [US6] Add customer notification for payment verification status in src/lib/payment/payment-service.js
-- [X] T099 [US6] Add error handling for partial success states (verification succeeds but order processing fails)
-- [X] T100 [US6] Add logging for automatic vs manual verification decisions
-- [X] T100A [US6] Implement encryption for premium account credentials before storage (FR-022) in src/lib/security/encryption-service.js (Already implemented in T129)
-- [X] T100B [US6] Implement secure credential delivery mechanism after payment verification (FR-023) in src/lib/security/credential-delivery.js (Already implemented in T130)
-- [X] T100C [US6] Implement security audit logs for credential access and delivery (FR-024) in src/lib/security/audit-logger.js (Already implemented in T131)
+- [x] T094 [US6] Enhance qris-handler.js to attempt automatic verification first in src/lib/payment/qris-handler.js
+- [x] T095 [US6] Add 5-minute timeout for automatic QRIS verification in src/lib/payment/qris-handler.js
+- [x] T096 [US6] Implement automatic fallback to manual verification on failure/timeout in src/lib/payment/qris-handler.js
+- [x] T097 [US6] Enhance manual-verification.js to handle QRIS fallback cases in src/lib/payment/manual-verification.js
+- [x] T098 [US6] Add customer notification for payment verification status in src/lib/payment/payment-service.js
+- [x] T099 [US6] Add error handling for partial success states (verification succeeds but order processing fails)
+- [x] T100 [US6] Add logging for automatic vs manual verification decisions
+- [x] T100A [US6] Implement encryption for premium account credentials before storage (FR-022) in src/lib/security/encryption-service.js (Already implemented in T129)
+- [x] T100B [US6] Implement secure credential delivery mechanism after payment verification (FR-023) in src/lib/security/credential-delivery.js (Already implemented in T130)
+- [x] T100C [US6] Implement security audit logs for credential access and delivery (FR-024) in src/lib/security/audit-logger.js (Already implemented in T131)
 
 **Checkpoint**: At this point, User Story 6 should be fully functional. QRIS payments automatically verify when possible, with reliable manual fallback.
 

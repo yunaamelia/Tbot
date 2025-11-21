@@ -56,9 +56,35 @@ function getRedis() {
  */
 async function closeRedis() {
   if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
-    logger.info('Redis connection closed');
+    try {
+      // Remove all event listeners first
+      redisClient.removeAllListeners();
+
+      // Try to quit gracefully, fallback to disconnect
+      try {
+        await Promise.race([
+          redisClient.quit(),
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
+      } catch (error) {
+        try {
+          await Promise.race([
+            redisClient.disconnect(),
+            new Promise((resolve) => setTimeout(resolve, 500)),
+          ]);
+        } catch (disconnectError) {
+          // Force cleanup if both fail
+          redisClient = null;
+        }
+      }
+
+      redisClient = null;
+      logger.info('Redis connection closed');
+    } catch (error) {
+      // Force cleanup on any error
+      redisClient = null;
+      logger.warn('Redis connection closed with error', error);
+    }
   }
 }
 

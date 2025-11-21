@@ -801,8 +801,18 @@ bot.catch((err, ctx) => {
 if (require.main === module) {
   bot
     .launch()
-    .then(() => {
+    .then(async () => {
       logger.info('Bot launched successfully');
+
+      // Start catalog sync listener for real-time stock updates (T084)
+      try {
+        const catalogSync = require('./lib/product/realtime/catalog-sync');
+        await catalogSync.startListening();
+        logger.info('Catalog sync listener started');
+      } catch (error) {
+        logger.error('Failed to start catalog sync listener', error);
+        // Don't exit - bot can work without real-time sync
+      }
 
       // Start checkout timeout cleanup scheduler (T074)
       const checkoutTimeout = require('./lib/order/checkout-timeout');
@@ -818,8 +828,25 @@ if (require.main === module) {
     });
 
   // Graceful shutdown
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  process.once('SIGINT', async () => {
+    try {
+      const catalogSync = require('./lib/product/realtime/catalog-sync');
+      await catalogSync.stopListening();
+    } catch (error) {
+      logger.error('Error stopping catalog sync listener', error);
+    }
+    bot.stop('SIGINT');
+  });
+
+  process.once('SIGTERM', async () => {
+    try {
+      const catalogSync = require('./lib/product/realtime/catalog-sync');
+      await catalogSync.stopListening();
+    } catch (error) {
+      logger.error('Error stopping catalog sync listener', error);
+    }
+    bot.stop('SIGTERM');
+  });
 }
 
 module.exports = bot;
