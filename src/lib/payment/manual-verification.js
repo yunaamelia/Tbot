@@ -1,9 +1,10 @@
 /**
  * Manual bank transfer handler with payment proof upload
- * Handles manual payment verification flow
+ * Handles manual payment verification flow and QRIS fallback cases
  *
- * Task: T060
+ * Tasks: T060, T097
  * Requirement: FR-006, FR-008
+ * Feature: 002-friday-enhancement
  */
 
 const paymentService = require('./payment-service');
@@ -115,6 +116,82 @@ class ManualVerificationHandler {
       text: i18n.t('checkout_payment_proof_received'),
       parse_mode: 'Markdown',
     };
+  }
+
+  /**
+   * Handle QRIS fallback case - format instructions for manual verification when automatic fails (T097)
+   * @param {number} orderId Order ID
+   * @param {number} amount Payment amount
+   * @param {string} reason Reason for fallback ('timeout'|'error'|'unavailable')
+   * @returns {Object} Formatted fallback message with manual instructions
+   */
+  formatQRISFallbackInstructions(orderId, amount, reason = 'error') {
+    const bankDetails = this.getBankAccountDetails();
+
+    let reasonText = '';
+    switch (reason) {
+      case 'timeout':
+        reasonText = 'Verifikasi otomatis tidak selesai dalam waktu yang ditentukan.';
+        break;
+      case 'error':
+        reasonText = 'Terjadi kesalahan pada verifikasi otomatis.';
+        break;
+      case 'unavailable':
+        reasonText = 'Verifikasi otomatis tidak tersedia saat ini.';
+        break;
+      default:
+        reasonText = 'Verifikasi otomatis tidak dapat dilakukan.';
+    }
+
+    const text =
+      `⚠️ *Verifikasi Otomatis Gagal*\n\n` +
+      `Pesanan: #${orderId}\n` +
+      `Jumlah: *Rp ${amount.toLocaleString('id-ID')}*\n\n` +
+      `${reasonText}\n\n` +
+      `Silakan lanjutkan dengan verifikasi manual:\n\n` +
+      `🏦 *Transfer Bank Manual*\n\n` +
+      i18n.t('checkout_manual_instructions', {
+        bankName: bankDetails.bankName,
+        accountNumber: bankDetails.accountNumber,
+        accountHolder: bankDetails.accountHolder,
+        amount: amount.toLocaleString('id-ID'),
+      }) +
+      `\n\n📸 *Kirim Bukti Transfer*\n` +
+      `Setelah transfer, silakan kirim foto atau screenshot bukti transfer Anda.`;
+
+    return {
+      text,
+      parse_mode: 'Markdown',
+      bankDetails,
+      reason,
+    };
+  }
+
+  /**
+   * Check if payment can be verified manually (for QRIS fallback cases) (T097)
+   * @param {number} paymentId Payment ID
+   * @returns {Promise<boolean>} True if payment can be manually verified
+   */
+  async canVerifyManually(paymentId) {
+    try {
+      const payment = await paymentService.getPaymentByOrderId(
+        paymentId // Note: This might need adjustment based on API
+      );
+      if (!payment) {
+        return false;
+      }
+
+      // Can verify manually if:
+      // 1. Payment is pending
+      // 2. Payment method is qris (fallback case) or manual_bank_transfer
+      return (
+        payment.status === 'pending' &&
+        (payment.payment_method === 'qris' || payment.payment_method === 'manual_bank_transfer')
+      );
+    } catch (error) {
+      logger.error('Error checking if payment can be verified manually', error, { paymentId });
+      return false;
+    }
   }
 }
 

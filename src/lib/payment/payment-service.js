@@ -42,7 +42,7 @@ class PaymentService {
   }
 
   /**
-   * Verify QRIS payment automatically (FR-007)
+   * Verify QRIS payment automatically (FR-007, T098)
    * Uses database transaction for stock deduction (FR-033)
    * @param {number} orderId Order ID
    * @param {string} transactionId Payment gateway transaction ID
@@ -62,45 +62,95 @@ class PaymentService {
 
       // Use transaction for atomic stock deduction and payment verification (FR-033)
       return await transaction(async (trx) => {
-        // Step 1: Update payment status
-        payment.markAsVerified('automatic', null, transactionId);
-        const verifiedPayment = await paymentRepository.updateStatus(payment.id, 'verified', {
-          verification_method: 'automatic',
-          payment_gateway_transaction_id: transactionId,
-          verification_timestamp: payment.verification_timestamp,
-        });
-
-        // Step 2: Get order to deduct stock
-        const order = await orderService.getOrderById(orderId);
-
-        // Step 3: Deduct stock with lock
-        await stockRepository.deductWithLock(order.product_id, order.quantity, trx);
-
-        // Step 4: Update order payment status (triggers order status transition and notification)
-        await orderService.updatePaymentStatus(orderId, 'verified');
-        // Notification will be sent by order-service updateOrderStatus listener (T084)
-
-        // Send admin notification for QRIS auto-verification (T121)
-        const updatedOrder = await orderService.getOrderById(orderId);
-        adminNotificationDispatcher
-          .sendToAllAdmins('qris_verified', {
-            order: updatedOrder.toDatabase(),
-            payment: verifiedPayment.toDatabase(),
-          })
-          .catch((error) => {
-            logger.error('Error sending admin notification for QRIS verification', error, {
-              orderId,
-              paymentId: payment.id,
-            });
+        try {
+          // Step 1: Update payment status
+          payment.markAsVerified('automatic', null, transactionId);
+          const verifiedPayment = await paymentRepository.updateStatus(payment.id, 'verified', {
+            verification_method: 'automatic',
+            payment_gateway_transaction_id: transactionId,
+            verification_timestamp: payment.verification_timestamp,
           });
 
-        logger.info('QRIS payment verified successfully', {
-          orderId,
-          paymentId: payment.id,
-          transactionId,
-        });
+          // Step 2: Get order to deduct stock
+          const order = await orderService.getOrderById(orderId);
 
-        return verifiedPayment;
+          // Step 3: Deduct stock with lock
+          await stockRepository.deductWithLock(order.product_id, order.quantity, trx);
+
+          // Step 4: Update order payment status (triggers order status transition and notification)
+          await orderService.updatePaymentStatus(orderId, 'verified');
+          // Notification will be sent by order-service updateOrderStatus listener (T084)
+
+          // Step 5: Send customer notification for payment verification status (T098)
+          try {
+            await this.notifyCustomerPaymentVerification(orderId, 'automatic', {
+              transactionId,
+            });
+          } catch (notificationError) {
+            // Don't throw - notification failure shouldn't block payment verification
+            logger.error(
+              'Error sending customer notification for payment verification',
+              notificationError,
+              {
+                orderId,
+                paymentId: payment.id,
+                transactionId,
+              }
+            );
+          }
+
+          // Send admin notification for QRIS auto-verification (T121)
+          const updatedOrder = await orderService.getOrderById(orderId);
+          adminNotificationDispatcher
+            .sendToAllAdmins('qris_verified', {
+              order: updatedOrder.toDatabase(),
+              payment: verifiedPayment.toDatabase(),
+            })
+            .catch((error) => {
+              logger.error('Error sending admin notification for QRIS verification', error, {
+                orderId,
+                paymentId: payment.id,
+              });
+            });
+
+          logger.info('QRIS payment verified successfully (automatic)', {
+            orderId,
+            paymentId: payment.id,
+            transactionId,
+            verificationMethod: 'automatic',
+            decision: 'automatic', // Logging for automatic vs manual decisions (T100)
+          });
+
+          return verifiedPayment;
+        } catch (error) {
+          // Step 6: Handle partial success states (T099)
+          // If verification succeeds but order processing fails, handle gracefully
+          if (payment.isVerified()) {
+            logger.error('Payment verified but order processing failed (partial success)', error, {
+              orderId,
+              paymentId: payment.id,
+              transactionId,
+            });
+
+            // Try to notify customer about partial success
+            try {
+              await this.notifyCustomerPaymentVerification(orderId, 'automatic', {
+                transactionId,
+                error:
+                  'Pembayaran berhasil diverifikasi, tetapi terjadi kesalahan pada pemrosesan pesanan. Silakan hubungi admin.',
+              });
+            } catch (notificationError) {
+              logger.error('Error sending partial success notification', notificationError, {
+                orderId,
+              });
+            }
+
+            throw new ConflictError(
+              'Pembayaran berhasil diverifikasi, tetapi terjadi kesalahan pada pemrosesan pesanan. Silakan hubungi admin.'
+            );
+          }
+          throw error;
+        }
       });
     } catch (error) {
       if (error instanceof NotFoundError || error instanceof ConflictError) {
@@ -112,8 +162,96 @@ class PaymentService {
   }
 
   /**
-   * Verify manual bank transfer payment (FR-008)
+   * Notify customer about payment verification status (T098)
+   * @param {number} orderId Order ID
+   * @param {string} verificationMethod 'automatic' or 'manual'
+   * @param {Object} options Additional options
+   * @param {string} options.transactionId Transaction ID (for automatic)
+   * @param {string} options.error Error message (if verification failed)
+   * @returns {Promise<void>}
+   */
+  async notifyCustomerPaymentVerification(orderId, verificationMethod, options = {}) {
+    try {
+      const order = await orderService.getOrderById(orderId);
+      if (!order) {
+        logger.warn('Order not found for payment notification', { orderId });
+        return;
+      }
+
+      // Get customer
+      const { getDb } = require('../database/db-connection');
+      const db = getDb();
+      const customer = await db('customers').where('id', order.customer_id).first();
+
+      if (!customer) {
+        logger.warn('Customer not found for payment notification', {
+          orderId,
+          customerId: order.customer_id,
+        });
+        return;
+      }
+
+      // Format notification message based on verification method
+      let message = '';
+      if (verificationMethod === 'automatic') {
+        if (options.error) {
+          message =
+            `⚠️ *Status Pembayaran*\n\n` +
+            `Pesanan: #${orderId}\n` +
+            `${options.error}\n\n` +
+            `Silakan hubungi admin jika masalah berlanjut.`;
+        } else {
+          message =
+            `✅ *Pembayaran Diverifikasi*\n\n` +
+            `Pesanan: #${orderId}\n` +
+            `Pembayaran Anda telah diverifikasi secara otomatis.\n` +
+            `Pesanan sedang diproses.\n\n` +
+            `Anda akan menerima notifikasi saat pesanan siap.`;
+        }
+      } else if (verificationMethod === 'manual') {
+        message =
+          `✅ *Pembayaran Diverifikasi*\n\n` +
+          `Pesanan: #${orderId}\n` +
+          `Pembayaran Anda telah diverifikasi.\n` +
+          `Pesanan sedang diproses.\n\n` +
+          `Anda akan menerima notifikasi saat pesanan siap.`;
+      }
+
+      // Send notification via notification service
+      if (message) {
+        try {
+          await notificationService.sendOrderStatusNotification(orderId, 'payment_verified', {
+            message,
+            verificationMethod,
+            transactionId: options.transactionId,
+          });
+        } catch (error) {
+          // Fallback: log error but don't throw
+          logger.error('Error sending payment verification notification', error, {
+            orderId,
+            verificationMethod,
+          });
+        }
+      }
+
+      logger.debug('Customer notified about payment verification', {
+        orderId,
+        verificationMethod,
+        customerId: customer.id,
+      });
+    } catch (error) {
+      logger.error('Error notifying customer about payment verification', error, {
+        orderId,
+        verificationMethod,
+      });
+      // Don't throw - notification failure shouldn't block payment processing
+    }
+  }
+
+  /**
+   * Verify manual bank transfer payment (FR-008, T097, T098)
    * Uses database transaction for stock deduction (FR-033)
+   * Also handles QRIS fallback cases (T097)
    * @param {number} paymentId Payment ID
    * @param {number} adminId Admin ID who verifies
    * @returns {Promise<Payment>} Verified payment
@@ -130,36 +268,89 @@ class PaymentService {
         return payment; // Idempotent
       }
 
-      if (payment.payment_method !== 'manual_bank_transfer') {
-        throw new ConflictError(`Payment ${paymentId} is not a manual bank transfer payment`);
+      // Allow manual verification for both manual_bank_transfer and qris (fallback) (T097)
+      if (payment.payment_method !== 'manual_bank_transfer' && payment.payment_method !== 'qris') {
+        throw new ConflictError(
+          `Payment ${paymentId} cannot be verified manually (method: ${payment.payment_method})`
+        );
       }
 
       // Use transaction for atomic stock deduction and payment verification (FR-033)
       return await transaction(async (trx) => {
-        // Step 1: Update payment status
-        payment.markAsVerified('manual', adminId);
-        const verifiedPayment = await paymentRepository.updateStatus(payment.id, 'verified', {
-          verification_method: 'manual',
-          admin_id: adminId,
-          verification_timestamp: payment.verification_timestamp,
-        });
+        try {
+          // Step 1: Update payment status
+          payment.markAsVerified('manual', adminId);
+          const verifiedPayment = await paymentRepository.updateStatus(payment.id, 'verified', {
+            verification_method: 'manual',
+            admin_id: adminId,
+            verification_timestamp: payment.verification_timestamp,
+          });
 
-        // Step 2: Get order to deduct stock
-        const order = await orderService.getOrderById(payment.order_id);
+          // Step 2: Get order to deduct stock
+          const order = await orderService.getOrderById(payment.order_id);
 
-        // Step 3: Deduct stock with lock
-        await stockRepository.deductWithLock(order.product_id, order.quantity, trx);
+          // Step 3: Deduct stock with lock
+          await stockRepository.deductWithLock(order.product_id, order.quantity, trx);
 
-        // Step 4: Update order payment status
-        await orderService.updatePaymentStatus(payment.order_id, 'verified');
+          // Step 4: Update order payment status
+          await orderService.updatePaymentStatus(payment.order_id, 'verified');
 
-        logger.info('Manual payment verified successfully', {
-          paymentId,
-          orderId: payment.order_id,
-          adminId,
-        });
+          // Step 5: Send customer notification for payment verification status (T098)
+          try {
+            await this.notifyCustomerPaymentVerification(payment.order_id, 'manual', {
+              adminId,
+            });
+          } catch (notificationError) {
+            // Don't throw - notification failure shouldn't block payment verification
+            logger.error(
+              'Error sending customer notification for manual payment verification',
+              notificationError,
+              {
+                paymentId,
+                orderId: payment.order_id,
+                adminId,
+              }
+            );
+          }
 
-        return verifiedPayment;
+          logger.info('Manual payment verified successfully', {
+            paymentId,
+            orderId: payment.order_id,
+            adminId,
+            paymentMethod: payment.payment_method,
+            verificationMethod: 'manual',
+            decision: 'manual', // Logging for automatic vs manual decisions (T100)
+          });
+
+          return verifiedPayment;
+        } catch (error) {
+          // Handle partial success states (T099)
+          if (payment.isVerified()) {
+            logger.error('Payment verified but order processing failed (partial success)', error, {
+              paymentId,
+              orderId: payment.order_id,
+              adminId,
+            });
+
+            // Try to notify customer about partial success
+            try {
+              await this.notifyCustomerPaymentVerification(payment.order_id, 'manual', {
+                adminId,
+                error:
+                  'Pembayaran berhasil diverifikasi, tetapi terjadi kesalahan pada pemrosesan pesanan. Silakan hubungi admin.',
+              });
+            } catch (notificationError) {
+              logger.error('Error sending partial success notification', notificationError, {
+                orderId: payment.order_id,
+              });
+            }
+
+            throw new ConflictError(
+              'Pembayaran berhasil diverifikasi, tetapi terjadi kesalahan pada pemrosesan pesanan. Silakan hubungi admin.'
+            );
+          }
+          throw error;
+        }
       });
     } catch (error) {
       if (error instanceof NotFoundError || error instanceof ConflictError) {
