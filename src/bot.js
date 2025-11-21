@@ -170,10 +170,31 @@ bot.command(
 
       // Get first product card
       const firstCard = await productCarouselHandler.getProductCard(0);
-      await ctx.reply(`${greeting}\n\n${firstCard.text}`, {
-        parse_mode: firstCard.parse_mode,
-        reply_markup: firstCard.reply_markup,
-      });
+
+      // Handle media group response (T042D)
+      if (firstCard.type === 'media_group') {
+        try {
+          await ctx.replyWithMediaGroup(firstCard.mediaGroup);
+          // Also send text message with buttons (since media group caption is limited)
+          await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+            parse_mode: firstCard.textMessage.parse_mode,
+            reply_markup: firstCard.textMessage.reply_markup,
+          });
+        } catch (error) {
+          logger.error('Error sending media group, falling back to text', error);
+          // Fallback to text-only if media group fails
+          await ctx.reply(`${greeting}\n\n${firstCard.textMessage.text}`, {
+            parse_mode: firstCard.textMessage.parse_mode,
+            reply_markup: firstCard.textMessage.reply_markup,
+          });
+        }
+      } else {
+        // Text-only display
+        await ctx.reply(`${greeting}\n\n${firstCard.text}`, {
+          parse_mode: firstCard.parse_mode,
+          reply_markup: firstCard.reply_markup,
+        });
+      }
     } catch (error) {
       logger.error('Error handling /start command', error);
       await ctx.reply(i18n.t('error_generic'));
@@ -244,11 +265,30 @@ bot.on(
           return;
         }
 
-        // Update message with new product card
-        await safeEditMessageText(ctx, updatedMessage.text, {
-          parse_mode: updatedMessage.parse_mode,
-          reply_markup: updatedMessage.reply_markup,
-        });
+        // Handle media group response (T042D)
+        if (updatedMessage.type === 'media_group') {
+          try {
+            await ctx.replyWithMediaGroup(updatedMessage.mediaGroup);
+            // Also send text message with buttons
+            await ctx.reply(updatedMessage.textMessage.text, {
+              parse_mode: updatedMessage.textMessage.parse_mode,
+              reply_markup: updatedMessage.textMessage.reply_markup,
+            });
+          } catch (error) {
+            logger.error('Error sending media group, falling back to text', error);
+            // Fallback to text-only if media group fails
+            await safeEditMessageText(ctx, updatedMessage.textMessage.text, {
+              parse_mode: updatedMessage.textMessage.parse_mode,
+              reply_markup: updatedMessage.textMessage.reply_markup,
+            });
+          }
+        } else {
+          // Text-only display
+          await safeEditMessageText(ctx, updatedMessage.text, {
+            parse_mode: updatedMessage.parse_mode,
+            reply_markup: updatedMessage.reply_markup,
+          });
+        }
 
         await safeAnswerCallbackQuery(ctx);
         return;
@@ -299,10 +339,31 @@ bot.on(
       const carouselData = productDetailsHandler.parseCarouselCallback(callbackData);
       if (carouselData) {
         const cardMessage = await productCarouselHandler.getProductCard(carouselData.index);
-        await safeEditMessageText(ctx, cardMessage.text, {
-          parse_mode: cardMessage.parse_mode,
-          reply_markup: cardMessage.reply_markup,
-        });
+
+        // Handle media group response (T042D)
+        if (cardMessage.type === 'media_group') {
+          try {
+            await ctx.replyWithMediaGroup(cardMessage.mediaGroup);
+            // Also send text message with buttons
+            await ctx.reply(cardMessage.textMessage.text, {
+              parse_mode: cardMessage.textMessage.parse_mode,
+              reply_markup: cardMessage.textMessage.reply_markup,
+            });
+          } catch (error) {
+            logger.error('Error sending media group, falling back to text', error);
+            // Fallback to text-only if media group fails
+            await safeEditMessageText(ctx, cardMessage.textMessage.text, {
+              parse_mode: cardMessage.textMessage.parse_mode,
+              reply_markup: cardMessage.textMessage.reply_markup,
+            });
+          }
+        } else {
+          // Text-only display
+          await safeEditMessageText(ctx, cardMessage.text, {
+            parse_mode: cardMessage.parse_mode,
+            reply_markup: cardMessage.reply_markup,
+          });
+        }
         await safeAnswerCallbackQuery(ctx);
         return;
       }
