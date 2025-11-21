@@ -1419,19 +1419,39 @@ bot.on(
 
           if (callbackData === 'wizard_cancel') {
             // Cancel wizard
-            await wizardManager.endWizard(userId);
-            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+            try {
+              await wizardManager.endWizard(userId);
+              const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
 
-            await safeEditMessageText(
-              ctx,
-              '❌ <b>Wizard Dibatalkan</b>\n\nProses tambah produk telah dibatalkan.',
-              {
-                parse_mode: 'HTML',
-                reply_markup: keyboard.reply_markup,
+              await safeEditMessageText(
+                ctx,
+                '❌ <b>Wizard Dibatalkan</b>\n\nProses tambah produk telah dibatalkan.',
+                {
+                  parse_mode: 'HTML',
+                  reply_markup: keyboard.reply_markup,
+                }
+              );
+              await safeAnswerCallbackQuery(ctx, '❌ Wizard dibatalkan');
+              return;
+            } catch (error) {
+              logger.error('Error cancelling wizard', error, { userId });
+              // Try to show error and respond anyway
+              try {
+                const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+                await safeEditMessageText(
+                  ctx,
+                  '❌ <b>Wizard Dibatalkan</b>\n\nProses tambah produk telah dibatalkan.',
+                  {
+                    parse_mode: 'HTML',
+                    reply_markup: keyboard.reply_markup,
+                  }
+                );
+              } catch (editError) {
+                logger.error('Error showing cancel message', editError, { userId });
               }
-            );
-            await safeAnswerCallbackQuery(ctx, '❌ Wizard dibatalkan');
-            return;
+              await safeAnswerCallbackQuery(ctx, '❌ Wizard dibatalkan');
+              return;
+            }
           }
 
           if (callbackData === 'wizard_confirm_create') {
@@ -1498,34 +1518,101 @@ bot.on(
 
           if (callbackData.startsWith('wizard_back_')) {
             // Go back to previous step
-            const targetStep = callbackData.replace('wizard_back_', '');
-            const message = await wizardHandler.goBackToStep(userId, targetStep);
-            await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
+            try {
+              const targetStep = callbackData.replace('wizard_back_', '');
+              const message = await wizardHandler.goBackToStep(userId, targetStep);
+              await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
 
-            await safeEditMessageText(ctx, message.text, {
-              parse_mode: message.parse_mode,
-              reply_markup: message.reply_markup,
-            });
-            await safeAnswerCallbackQuery(ctx);
-            return;
+              await safeEditMessageText(ctx, message.text, {
+                parse_mode: message.parse_mode,
+                reply_markup: message.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '◀️ Kembali');
+              return;
+            } catch (error) {
+              logger.error('Error going back in wizard', error, { userId, callbackData });
+              // Show error message to user
+              const errorMessage = `❌ <b>Error</b>\n\n${error.message || 'Terjadi kesalahan saat kembali ke langkah sebelumnya.'}\n\nSilakan coba lagi atau gunakan /admin untuk kembali ke menu admin.`;
+              const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+              await safeEditMessageText(ctx, errorMessage, {
+                parse_mode: 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '❌ Error');
+              return;
+            }
           }
 
           if (callbackData.startsWith('wizard_skip_')) {
             // Skip current step
-            const stepToSkip = callbackData.replace('wizard_skip_', '');
-            const message = await wizardHandler.skipStep(userId, stepToSkip);
-            await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
+            try {
+              const stepToSkip = callbackData.replace('wizard_skip_', '');
 
-            await safeEditMessageText(ctx, message.text, {
-              parse_mode: message.parse_mode,
-              reply_markup: message.reply_markup,
-            });
-            await safeAnswerCallbackQuery(ctx, '⏭️ Langkah dilewati');
-            return;
+              // Check if step is required before skipping
+              const steps = wizardManager.getWizardSteps();
+              const stepDef = steps.find((s) => s.id === stepToSkip);
+
+              if (stepDef && stepDef.required) {
+                // Required step cannot be skipped
+                const state = await wizardManager.getWizardState(userId);
+                if (state) {
+                  const currentMessage = wizardHandler.getStepMessage(state.step, state.data);
+                  const errorMessage = {
+                    text: `❌ <b>Langkah Wajib</b>\n\nLangkah "${stepDef.label}" tidak dapat dilewati karena wajib diisi.\n\n${currentMessage.text}`,
+                    parse_mode: 'HTML',
+                    reply_markup: currentMessage.reply_markup,
+                  };
+                  await safeEditMessageText(ctx, errorMessage.text, {
+                    parse_mode: errorMessage.parse_mode,
+                    reply_markup: errorMessage.reply_markup,
+                  });
+                  await safeAnswerCallbackQuery(ctx, '❌ Langkah wajib tidak dapat dilewati', {
+                    show_alert: true,
+                  });
+                  return;
+                }
+              }
+
+              const message = await wizardHandler.skipStep(userId, stepToSkip);
+              await wizardManager.setWizardMessageId(userId, ctx.callbackQuery.message.message_id);
+
+              await safeEditMessageText(ctx, message.text, {
+                parse_mode: message.parse_mode,
+                reply_markup: message.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '⏭️ Langkah dilewati');
+              return;
+            } catch (error) {
+              logger.error('Error skipping step in wizard', error, { userId, callbackData });
+              // Show error message to user
+              const errorMessage = `❌ <b>Error</b>\n\n${error.message || 'Terjadi kesalahan saat melewati langkah.'}\n\nSilakan coba lagi atau gunakan /admin untuk kembali ke menu admin.`;
+              const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+              await safeEditMessageText(ctx, errorMessage, {
+                parse_mode: 'HTML',
+                reply_markup: keyboard.reply_markup,
+              });
+              await safeAnswerCallbackQuery(ctx, '❌ Error', { show_alert: true });
+              return;
+            }
           }
         } catch (error) {
           logger.error('Error handling wizard callback', error, { userId, callbackData });
-          await safeAnswerCallbackQuery(ctx, '❌ Error processing wizard action');
+
+          // Always respond to callback query, even on error
+          try {
+            const errorMessage = `❌ <b>Error</b>\n\n${error.message || 'Terjadi kesalahan saat memproses aksi wizard.'}\n\nSilakan coba lagi atau gunakan /admin untuk kembali ke menu admin.`;
+            const keyboard = await commandHelp.createAdminKeyboard('admin', userId);
+            await safeEditMessageText(ctx, errorMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard.reply_markup,
+            });
+          } catch (editError) {
+            logger.error('Error showing error message in wizard', editError, { userId });
+          }
+
+          await safeAnswerCallbackQuery(ctx, '❌ Error processing wizard action', {
+            show_alert: true,
+          });
           return;
         }
       }
