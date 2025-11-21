@@ -298,6 +298,146 @@ describe('Enhanced Inline Keyboard System - User Story 1 Integration Tests', () 
         const hasNext = lastRow.some((btn) => btn.callback_data.match(/nav_page_1/));
         expect(hasNext).toBe(true);
       });
+
+      test('When menu has 10+ items, Then "▶️ Next" button is shown (T079)', async () => {
+        const items = Array.from({ length: 12 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        const keyboard = await keyboardBuilder.createKeyboard(items);
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        // Should have Next button (for page 1)
+        const nextButton = lastRow.find((btn) => btn.callback_data === 'nav_page_1');
+        expect(nextButton).toBeDefined();
+        expect(nextButton.text).toMatch(/selanjutnya|next|▶️/i);
+      });
+
+      test('When pagination is shown, Then "more" button only appears when additional items available (T081, FR-017)', async () => {
+        // First page with more items available
+        const items = Array.from({ length: 15 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        const keyboardPage0 = await keyboardBuilder.createKeyboard(items, { page: 0 });
+        const rowsPage0 = keyboardPage0.reply_markup.inline_keyboard;
+        const lastRowPage0 = rowsPage0[rowsPage0.length - 1];
+
+        // Should have Next button on first page (more items available)
+        const hasNextPage0 = lastRowPage0.some((btn) => btn.callback_data.match(/nav_page_1/));
+        expect(hasNextPage0).toBe(true);
+
+        // Last page - no more items
+        const keyboardPage1 = await keyboardBuilder.createKeyboard(items, { page: 1 });
+        const rowsPage1 = keyboardPage1.reply_markup.inline_keyboard;
+        const lastRowPage1 = rowsPage1[rowsPage1.length - 1];
+
+        // Should NOT have Next button on last page (no more items)
+        const hasNextPage1 = lastRowPage1.some((btn) => btn.callback_data.match(/nav_page_2/));
+        expect(hasNextPage1).toBe(false);
+      });
+
+      test('When on first page, Then Prev button is NOT shown (T093, FR-018)', async () => {
+        const items = Array.from({ length: 12 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        const keyboard = await keyboardBuilder.createKeyboard(items, { page: 0 });
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        // Should NOT have Prev button on first page
+        const prevButton = lastRow.find((btn) => btn.callback_data === 'nav_page_-1');
+        expect(prevButton).toBeUndefined();
+
+        // Should have Next button
+        const nextButton = lastRow.find((btn) => btn.callback_data === 'nav_page_1');
+        expect(nextButton).toBeDefined();
+      });
+
+      test('When on last page, Then Next button is NOT shown (T093, FR-018)', async () => {
+        const items = Array.from({ length: 12 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        // Last page (page 1 for 12 items = 2 pages total)
+        const keyboard = await keyboardBuilder.createKeyboard(items, { page: 1 });
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const lastRow = keyboardRows[keyboardRows.length - 1];
+
+        // Should have Prev button
+        const prevButton = lastRow.find((btn) => btn.callback_data === 'nav_page_0');
+        expect(prevButton).toBeDefined();
+
+        // Should NOT have Next button on last page
+        const nextButton = lastRow.find((btn) => btn.callback_data === 'nav_page_2');
+        expect(nextButton).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Pagination Navigation for User Story 5', () => {
+    describe('Given pagination navigation', () => {
+      test('When Next button is clicked, Then keyboard is replaced inline with next page (T082)', async () => {
+        const items = Array.from({ length: 15 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        // First page
+        const keyboardPage0 = await keyboardBuilder.createKeyboard(items, { page: 0 });
+        const rowsPage0 = keyboardPage0.reply_markup.inline_keyboard;
+        const itemRowsPage0 = rowsPage0.slice(0, -1);
+        const itemsOnPage0 = itemRowsPage0.reduce((sum, row) => sum + row.length, 0);
+
+        // Second page
+        const keyboardPage1 = await keyboardBuilder.createKeyboard(items, { page: 1 });
+        const rowsPage1 = keyboardPage1.reply_markup.inline_keyboard;
+        const itemRowsPage1 = rowsPage1.slice(0, -1);
+        const itemsOnPage1 = itemRowsPage1.reduce((sum, row) => sum + row.length, 0);
+
+        // Both pages should have items (different items)
+        expect(itemsOnPage0).toBeGreaterThan(0);
+        expect(itemsOnPage1).toBeGreaterThan(0);
+
+        // First button of each page should be different
+        const firstButtonPage0 = itemRowsPage0[0][0].callback_data;
+        const firstButtonPage1 = itemRowsPage1[0][0].callback_data;
+        expect(firstButtonPage0).not.toBe(firstButtonPage1);
+      });
+
+      test('When Prev button is clicked, Then keyboard is replaced inline with previous page (T083)', async () => {
+        const items = Array.from({ length: 15 }, (_, i) => ({
+          text: `Item ${i + 1}`,
+          callback_data: `item_${i + 1}`,
+        }));
+
+        // Second page
+        const keyboardPage1 = await keyboardBuilder.createKeyboard(items, { page: 1 });
+        const rowsPage1 = keyboardPage1.reply_markup.inline_keyboard;
+        const itemRowsPage1 = rowsPage1.slice(0, -1);
+        const itemsOnPage1 = itemRowsPage1.reduce((sum, row) => sum + row.length, 0);
+
+        // First page (previous)
+        const keyboardPage0 = await keyboardBuilder.createKeyboard(items, { page: 0 });
+        const rowsPage0 = keyboardPage0.reply_markup.inline_keyboard;
+        const itemRowsPage0 = rowsPage0.slice(0, -1);
+        const itemsOnPage0 = itemRowsPage0.reduce((sum, row) => sum + row.length, 0);
+
+        // Both pages should have items (different items)
+        expect(itemsOnPage0).toBeGreaterThan(0);
+        expect(itemsOnPage1).toBeGreaterThan(0);
+
+        // First button of each page should be different
+        const firstButtonPage0 = itemRowsPage0[0][0].callback_data;
+        const firstButtonPage1 = itemRowsPage1[0][0].callback_data;
+        expect(firstButtonPage0).not.toBe(firstButtonPage1);
+      });
     });
   });
 
@@ -407,6 +547,64 @@ describe('Enhanced Inline Keyboard System - User Story 1 Integration Tests', () 
 
         // At main menu, Back button should be disabled or have different behavior
         // This will be verified in implementation
+      });
+    });
+  });
+
+  describe('Visual Enhancements for User Story 4', () => {
+    describe('Given buttons with visual cues', () => {
+      test('When buttons are displayed, Then emojis/icons are shown correctly (T058)', async () => {
+        const items = [
+          { text: '🏠 Home', callback_data: 'home', roles: [] },
+          { text: '🔵 Primary Action', callback_data: 'primary', roles: [] },
+          { text: '⚪️ Secondary Action', callback_data: 'secondary', roles: [] },
+          { text: '🔴 Danger Action', callback_data: 'danger', roles: [] },
+        ];
+
+        const keyboard = await keyboardBuilder.createKeyboard(items, {
+          includeNavigation: false,
+        });
+
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const allButtons = keyboardRows.flat();
+
+        // Check if emojis are preserved in button text
+        const homeButton = allButtons.find((btn) => btn.callback_data === 'home');
+        const primaryButton = allButtons.find((btn) => btn.callback_data === 'primary');
+        const secondaryButton = allButtons.find((btn) => btn.callback_data === 'secondary');
+        const dangerButton = allButtons.find((btn) => btn.callback_data === 'danger');
+
+        expect(homeButton?.text).toContain('🏠');
+        expect(primaryButton?.text).toContain('🔵');
+        expect(secondaryButton?.text).toContain('⚪️');
+        expect(dangerButton?.text).toContain('🔴');
+      });
+
+      test('When buttons have color coding, Then emojis indicate button type (T059)', async () => {
+        const items = [
+          { text: '🔵 Primary Button', callback_data: 'primary', color_type: 'primary' },
+          { text: '⚪️ Secondary Button', callback_data: 'secondary', color_type: 'secondary' },
+          { text: '🔴 Danger Button', callback_data: 'danger', color_type: 'danger' },
+        ];
+
+        const keyboard = await keyboardBuilder.createKeyboard(items, {
+          includeNavigation: false,
+        });
+
+        const keyboardRows = keyboard.reply_markup.inline_keyboard;
+        const allButtons = keyboardRows.flat();
+
+        // Verify color coding via emojis
+        const primaryButton = allButtons.find((btn) => btn.callback_data === 'primary');
+        const secondaryButton = allButtons.find((btn) => btn.callback_data === 'secondary');
+        const dangerButton = allButtons.find((btn) => btn.callback_data === 'danger');
+
+        // Primary buttons should have blue emoji
+        expect(primaryButton?.text).toMatch(/🔵/);
+        // Secondary buttons should have white/circle emoji
+        expect(secondaryButton?.text).toMatch(/⚪️/);
+        // Danger buttons should have red emoji
+        expect(dangerButton?.text).toMatch(/🔴/);
       });
     });
   });

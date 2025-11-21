@@ -28,6 +28,7 @@ const customerServiceRouter = require('./lib/customer-service/customer-service-r
 const personalizationEngine = require('./lib/customer-service/personalization-engine');
 const personaService = require('./lib/friday/persona-service');
 const navigationHandler = require('./lib/ui/navigation-handler');
+const buttonStateManager = require('./lib/ui/button-state-manager');
 const { isStoreOpen, getStoreClosedMessage } = require('./lib/shared/store-config');
 const { asyncHandler } = require('./lib/shared/errors');
 const logger = require('./lib/shared/logger').child('bot');
@@ -295,8 +296,31 @@ bot.command(
 bot.on(
   'callback_query',
   asyncHandler(async (ctx) => {
+    const startTime = Date.now();
+    const userId = ctx.from.id;
+    const callbackData = ctx.callbackQuery.data;
+
     try {
-      const callbackData = ctx.callbackQuery.data;
+      // Button state management (T071, FR-014, FR-015): Check if button is already processing
+      // Skip navigation callbacks (nav_home, nav_back, nav_help) - they don't need processing state
+      const navigationCallbacks = ['nav_home', 'nav_back', 'nav_help'];
+      const isNavigationCallback = navigationCallbacks.includes(callbackData);
+
+      if (!isNavigationCallback) {
+        // Check if button is already processing (prevent duplicate clicks)
+        const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
+        if (isProcessing) {
+          // Button is already processing - ignore duplicate click
+          await safeAnswerCallbackQuery(ctx, '⏳ Sedang diproses...', { show_alert: false });
+          logger.debug('Duplicate button click ignored', { userId, callbackData });
+          return;
+        }
+
+        // Disable button and show loading indicator
+        await buttonStateManager.disableButton(callbackData, userId, {
+          loadingText: '⏳ Memproses...',
+        });
+      }
 
       // Handle admin-only callbacks with access denied check (T055, FR-011)
       // Check if callback is admin-only (starts with 'admin_' or specific admin patterns)
@@ -679,6 +703,114 @@ bot.on(
         }
       }
 
+      // Handle pagination navigation (T089, T090, T094, FR-002, FR-016, FR-018)
+      if (callbackData.startsWith('nav_page_')) {
+        try {
+          const userId = ctx.from.id;
+
+          // Parse page number from callback data
+          const pageMatch = callbackData.match(/nav_page_(\d+)/);
+          if (pageMatch) {
+            const targetPage = parseInt(pageMatch[1], 10);
+
+            // Get current message text and reply_markup
+            const currentMessage = ctx.callbackQuery.message;
+            const currentReplyMarkup = currentMessage.reply_markup;
+
+            if (!currentReplyMarkup || !currentReplyMarkup.inline_keyboard) {
+              await safeAnswerCallbackQuery(ctx, 'Tidak dapat memuat halaman');
+              return;
+            }
+
+            // Try to get full items list from Redis cache (T091)
+            const redisClient = require('./lib/shared/redis-client');
+            const redis = redisClient.getRedis();
+            let allItems = null;
+
+            if (redis && process.env.NODE_ENV !== 'test') {
+              try {
+                // Try multiple cache keys (based on message_id or timestamp patterns)
+                const messageId = currentMessage.message_id;
+                const cacheKeyPatterns = [
+                  `menu:items:${userId}:${messageId}`,
+                  `menu:items:${userId}:*`, // Pattern match (will need to iterate)
+                ];
+
+                // Try first pattern (message_id based)
+                const cachedItems = await redis.get(cacheKeyPatterns[0]);
+                if (cachedItems) {
+                  allItems = JSON.parse(cachedItems);
+                }
+              } catch (error) {
+                logger.warn('Failed to get items from cache for pagination', {
+                  userId,
+                  error: error.message,
+                });
+              }
+            }
+
+            // Fallback: Extract items from current keyboard (T094: error handling)
+            if (!allItems) {
+              const currentKeyboard = currentReplyMarkup.inline_keyboard;
+              const itemButtons = currentKeyboard
+                .flat()
+                .filter(
+                  (btn) =>
+                    btn.callback_data &&
+                    !btn.callback_data.startsWith('nav_') &&
+                    btn.callback_data !== 'nav_page_info'
+                );
+
+              // Reconstruct items from buttons (this is a fallback - may not have full list)
+              allItems = itemButtons.map((btn) => ({
+                text: btn.text,
+                callback_data: btn.callback_data,
+              }));
+
+              logger.warn('Using fallback item reconstruction for pagination (may be incomplete)', {
+                userId,
+                itemsCount: allItems.length,
+              });
+            }
+
+            // Create paginated keyboard for target page (T089, FR-002)
+            const keyboardBuilder = require('./lib/ui/keyboard-builder');
+            const newKeyboard = await keyboardBuilder.createKeyboard(allItems, {
+              page: targetPage,
+              telegramUserId: userId,
+              includeNavigation: true,
+            });
+
+            // Replace keyboard inline (FR-002: update the same message)
+            await ctx.editMessageReplyMarkup(newKeyboard.reply_markup);
+
+            // Log pagination operations (T095)
+            logger.info('Pagination navigation completed', {
+              userId,
+              targetPage,
+              callbackData,
+              itemsCount: allItems.length,
+            });
+
+            await safeAnswerCallbackQuery(ctx, `Halaman ${targetPage + 1}`);
+            return;
+          }
+
+          // Handle nav_page_info (page info button - no action needed)
+          if (callbackData === 'nav_page_info') {
+            await safeAnswerCallbackQuery(ctx, '', { show_alert: false });
+            return;
+          }
+        } catch (error) {
+          logger.error('Error handling pagination navigation', error, {
+            userId: ctx.from.id,
+            callbackData,
+          });
+          await safeAnswerCallbackQuery(ctx, 'Terjadi kesalahan saat menavigasi halaman');
+          return;
+        }
+      }
+
       // Handle navigation buttons (T034, T035, T036, T038, T039, FR-003, FR-004, FR-006)
       const userId = ctx.from.id;
 
@@ -1008,7 +1140,56 @@ bot.on(
       }
     } catch (error) {
       logger.error('Error handling callback query', error);
+
+      // Re-enable button on error (T071, FR-015)
+      const navigationCallbacks = ['nav_home', 'nav_back', 'nav_help'];
+      const isNavigationCallback =
+        navigationCallbacks.includes(callbackData) || callbackData.startsWith('nav_page_');
+      if (!isNavigationCallback) {
+        await buttonStateManager
+          .enableButton(callbackData, userId, {
+            resultText: '❌ Gagal',
+            success: false,
+          })
+          .catch((enableError) => {
+            logger.warn('Failed to enable button after error', { enableError });
+          });
+      }
+
       await safeAnswerCallbackQuery(ctx, i18n.t('error_generic'));
+    } finally {
+      // Re-enable button after processing completes (T071, FR-015)
+      // Only if not navigation callback and if button was disabled
+      const navigationCallbacks = ['nav_home', 'nav_back', 'nav_help'];
+      const isNavigationCallback =
+        navigationCallbacks.includes(callbackData) || callbackData.startsWith('nav_page_');
+
+      if (!isNavigationCallback) {
+        // Check if button is still processing (if yes, re-enable)
+        try {
+          const isProcessing = await buttonStateManager.isButtonProcessing(callbackData, userId);
+          if (isProcessing) {
+            // Calculate response time
+            const responseTime = Date.now() - startTime;
+            await buttonStateManager.enableButton(callbackData, userId, {
+              resultText: '✅ Selesai',
+              success: true,
+            });
+            logger.debug('Button re-enabled after processing', {
+              userId,
+              callbackData,
+              responseTime,
+            });
+          }
+        } catch (enableError) {
+          // Ignore errors when enabling button (non-critical)
+          logger.warn('Failed to enable button in finally block', {
+            userId,
+            callbackData,
+            error: enableError.message,
+          });
+        }
+      }
     }
   })
 );

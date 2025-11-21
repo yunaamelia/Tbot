@@ -1,11 +1,12 @@
 /**
- * Unit tests for Keyboard Builder - Label Truncation Logic
+ * Unit tests for Keyboard Builder - Label Truncation Logic and Pagination
  *
- * Task: T019
- * Requirements: FR-001
+ * Tasks: T019, T086
+ * Requirements: FR-001, FR-002, FR-016, FR-017, FR-018
  * Feature: 003-enhanced-keyboard
  */
 
+const keyboardBuilder = require('../../../src/lib/ui/keyboard-builder');
 const { truncateLabel, validateButtonLabel } = require('../../../src/lib/ui/keyboard-builder');
 const { ValidationError } = require('../../../src/lib/shared/errors');
 
@@ -83,6 +84,100 @@ describe('Keyboard Builder - Label Truncation', () => {
       expect(() => validateButtonLabel(null)).toThrow(ValidationError);
       expect(() => validateButtonLabel(undefined)).toThrow(ValidationError);
       expect(() => validateButtonLabel(123)).toThrow(ValidationError);
+    });
+  });
+
+  describe('createPaginatedKeyboard() pagination logic (T086)', () => {
+    test('When menu has 10 items, Then pagination is shown with page 0 having 9 items', async () => {
+      const items = Array.from({ length: 10 }, (_, i) => ({
+        text: `Item ${i + 1}`,
+        callback_data: `item_${i + 1}`,
+      }));
+
+      const keyboard = await keyboardBuilder.createKeyboard(items, { page: 0 });
+      const keyboardRows = keyboard.reply_markup.inline_keyboard;
+
+      // Should have max 9 items on first page
+      const itemRows = keyboardRows.slice(0, -1); // Exclude pagination/nav row
+      const totalItemsOnPage = itemRows.reduce((sum, row) => sum + row.length, 0);
+      expect(totalItemsOnPage).toBeLessThanOrEqual(9);
+
+      // Last row should have pagination controls
+      const lastRow = keyboardRows[keyboardRows.length - 1];
+      const hasPagination = lastRow.some((btn) => btn.callback_data.match(/nav_page/));
+      expect(hasPagination).toBe(true);
+    });
+
+    test('When on page 1, Then pagination shows correct items', async () => {
+      const items = Array.from({ length: 15 }, (_, i) => ({
+        text: `Item ${i + 1}`,
+        callback_data: `item_${i + 1}`,
+      }));
+
+      const keyboard = await keyboardBuilder.createKeyboard(items, { page: 1 });
+      const keyboardRows = keyboard.reply_markup.inline_keyboard;
+
+      // Should have items from page 1 (items 10-15, max 9 items)
+      const itemRows = keyboardRows.slice(0, -1); // Exclude pagination/nav row
+      const totalItemsOnPage = itemRows.reduce((sum, row) => sum + row.length, 0);
+      expect(totalItemsOnPage).toBeLessThanOrEqual(9);
+      expect(totalItemsOnPage).toBeGreaterThan(0);
+
+      // Last row should have Prev button (not on first page)
+      const lastRow = keyboardRows[keyboardRows.length - 1];
+      const hasPrev = lastRow.some((btn) => btn.callback_data === 'nav_page_0');
+      expect(hasPrev).toBe(true);
+    });
+
+    test('When pagination buttons are present, Then they have correct callback_data format', async () => {
+      const items = Array.from({ length: 12 }, (_, i) => ({
+        text: `Item ${i + 1}`,
+        callback_data: `item_${i + 1}`,
+      }));
+
+      const keyboard = await keyboardBuilder.createKeyboard(items, { page: 0 });
+      const keyboardRows = keyboard.reply_markup.inline_keyboard;
+      const lastRow = keyboardRows[keyboardRows.length - 1];
+
+      // Should have page info button
+      const pageInfoButton = lastRow.find((btn) => btn.callback_data === 'nav_page_info');
+      expect(pageInfoButton).toBeDefined();
+
+      // Should have Next button with correct format (nav_page_1)
+      const nextButton = lastRow.find((btn) => btn.callback_data === 'nav_page_1');
+      expect(nextButton).toBeDefined();
+      expect(nextButton.callback_data).toMatch(/^nav_page_\d+$/);
+    });
+
+    test('When on first page, Then Prev button is NOT shown (FR-018)', async () => {
+      const items = Array.from({ length: 12 }, (_, i) => ({
+        text: `Item ${i + 1}`,
+        callback_data: `item_${i + 1}`,
+      }));
+
+      const keyboard = await keyboardBuilder.createKeyboard(items, { page: 0 });
+      const keyboardRows = keyboard.reply_markup.inline_keyboard;
+      const lastRow = keyboardRows[keyboardRows.length - 1];
+
+      // Should NOT have Prev button on first page
+      const prevButton = lastRow.find((btn) => btn.callback_data === 'nav_page_-1');
+      expect(prevButton).toBeUndefined();
+    });
+
+    test('When on last page, Then Next button is NOT shown (FR-018)', async () => {
+      const items = Array.from({ length: 12 }, (_, i) => ({
+        text: `Item ${i + 1}`,
+        callback_data: `item_${i + 1}`,
+      }));
+
+      // Last page (page 1 for 12 items = 2 pages total, page 0-indexed)
+      const keyboard = await keyboardBuilder.createKeyboard(items, { page: 1 });
+      const keyboardRows = keyboard.reply_markup.inline_keyboard;
+      const lastRow = keyboardRows[keyboardRows.length - 1];
+
+      // Should NOT have Next button on last page
+      const nextButton = lastRow.find((btn) => btn.callback_data === 'nav_page_2');
+      expect(nextButton).toBeUndefined();
     });
   });
 });

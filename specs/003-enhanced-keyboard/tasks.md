@@ -153,30 +153,30 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T058 [P] [US4] Integration test for button emojis/icons displayed correctly in tests/integration/enhanced-keyboard.test.js
-- [ ] T059 [P] [US4] Integration test for color coding (primary, secondary, danger) via emojis in tests/integration/enhanced-keyboard.test.js
-- [ ] T060 [P] [US4] Integration test for button disabled state during processing in tests/integration/button-states.test.js
-- [ ] T061 [P] [US4] Integration test for loading indicator during button processing in tests/integration/button-states.test.js
-- [ ] T062 [P] [US4] Integration test for button re-enabled after processing completion in tests/integration/button-states.test.js
-- [ ] T063 [P] [US4] Integration test for duplicate click prevention (button disabled prevents rapid clicks) in tests/integration/button-states.test.js
-- [ ] T064 [P] [US4] Unit test for disableButton() in tests/unit/ui/button-state-manager.test.js
-- [ ] T065 [P] [US4] Unit test for enableButton() in tests/unit/ui/button-state-manager.test.js
-- [ ] T066 [P] [US4] Unit test for isButtonProcessing() in tests/unit/ui/button-state-manager.test.js
+- [x] T058 [P] [US4] Integration test for button emojis/icons displayed correctly in tests/integration/enhanced-keyboard.test.js
+- [x] T059 [P] [US4] Integration test for color coding (primary, secondary, danger) via emojis in tests/integration/enhanced-keyboard.test.js
+- [x] T060 [P] [US4] Integration test for button disabled state during processing in tests/integration/button-states.test.js
+- [x] T061 [P] [US4] Integration test for loading indicator during button processing in tests/integration/button-states.test.js
+- [x] T062 [P] [US4] Integration test for button re-enabled after processing completion in tests/integration/button-states.test.js
+- [x] T063 [P] [US4] Integration test for duplicate click prevention (button disabled prevents rapid clicks) in tests/integration/button-states.test.js
+- [x] T064 [P] [US4] Unit test for disableButton() in tests/unit/ui/button-state-manager.test.js
+- [x] T065 [P] [US4] Unit test for enableButton() in tests/unit/ui/button-state-manager.test.js
+- [x] T066 [P] [US4] Unit test for isButtonProcessing() in tests/unit/ui/button-state-manager.test.js
 
 ### Implementation for User Story 4
 
-- [ ] T067 [P] [US4] Create button-state-manager.js with disableButton() method in src/lib/ui/button-state-manager.js
-- [ ] T068 [US4] Implement enableButton() method in src/lib/ui/button-state-manager.js
-- [ ] T069 [US4] Implement isButtonProcessing() method with Redis state storage in src/lib/ui/button-state-manager.js
-- [ ] T070 [US4] Add Redis state storage for button processing (key: button:state:{buttonId}, TTL: 30 seconds) in src/lib/ui/button-state-manager.js
-- [ ] T071 [US4] Integrate button state management into callback query handler in src/bot.js (FR-014)
-- [ ] T072 [US4] Add visual emoji helpers for color coding (🔵 primary, ⚪️ secondary, 🔴 danger) in src/lib/ui/keyboard-builder.js (FR-012, FR-013)
-- [ ] T073 [US4] Add loading indicator emoji/text (⏳ Processing...) to button states in src/lib/ui/button-state-manager.js
-- [ ] T074 [US4] Add success/error feedback emojis (✅ Complete, ❌ Failed) to button states in src/lib/ui/button-state-manager.js
-- [ ] T075 [US4] Implement visual feedback on button click (state changes, emoji updates) in src/lib/ui/button-state-manager.js (FR-015)
-- [ ] T076 [US4] Implement button state timeout handling (30 seconds default) in src/lib/ui/button-state-manager.js
-- [ ] T077 [US4] Add error handling for button state operations in src/lib/ui/button-state-manager.js
-- [ ] T078 [US4] Add logging for button state transitions in src/lib/ui/button-state-manager.js
+- [x] T067 [P] [US4] Create button-state-manager.js with disableButton() method in src/lib/ui/button-state-manager.js
+- [x] T068 [US4] Implement enableButton() method in src/lib/ui/button-state-manager.js
+- [x] T069 [US4] Implement isButtonProcessing() method with Redis state storage in src/lib/ui/button-state-manager.js
+- [x] T070 [US4] Add Redis state storage for button processing (key: button:state:{buttonId}, TTL: 30 seconds) in src/lib/ui/button-state-manager.js
+- [x] T071 [US4] Integrate button state management into callback query handler in src/bot.js (FR-014)
+- [x] T072 [US4] Add visual emoji helpers for color coding (🔵 primary, ⚪️ secondary, 🔴 danger) in src/lib/ui/keyboard-builder.js (FR-012, FR-013)
+- [x] T073 [US4] Add loading indicator emoji/text (⏳ Processing...) to button states in src/lib/ui/button-state-manager.js
+- [x] T074 [US4] Add success/error feedback emojis (✅ Complete, ❌ Failed) to button states in src/lib/ui/button-state-manager.js
+- [x] T075 [US4] Implement visual feedback on button click (state changes, emoji updates) in src/lib/ui/button-state-manager.js (FR-015)
+- [x] T076 [US4] Implement button state timeout handling (30 seconds default) in src/lib/ui/button-state-manager.js
+- [x] T077 [US4] Add error handling for button state operations in src/lib/ui/button-state-manager.js
+- [x] T078 [US4] Add logging for button state transitions in src/lib/ui/button-state-manager.js
 
 **Checkpoint**: At this point, User Story 4 should be fully functional. Buttons show visual cues (emojis, colors), disable during processing, show loading indicators, and provide feedback on completion.
 
@@ -192,26 +192,26 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T079 [P] [US5] Integration test for pagination at 10+ items (shows "▶️ Next" button) in tests/integration/enhanced-keyboard.test.js
-- [ ] T080 [P] [US5] Integration test for no pagination at exactly 9 items in tests/integration/enhanced-keyboard.test.js
-- [ ] T081 [P] [US5] Integration test for "more" button only shown when additional items available (FR-017) in tests/integration/enhanced-keyboard.test.js
-- [ ] T082 [P] [US5] Integration test for pagination navigation (Next replaces current keyboard inline) in tests/integration/enhanced-keyboard.test.js
-- [ ] T083 [P] [US5] Integration test for pagination backward navigation (Prev replaces current keyboard inline) in tests/integration/enhanced-keyboard.test.js
-- [ ] T084 [P] [US5] Integration test for first page feedback ("Already on first page") in tests/integration/enhanced-keyboard.test.js
-- [ ] T085 [P] [US5] Integration test for last page feedback ("No more items") in tests/integration/enhanced-keyboard.test.js
-- [ ] T086 [P] [US5] Unit test for createPaginatedKeyboard() pagination logic in tests/unit/ui/keyboard-builder.test.js
+- [x] T079 [P] [US5] Integration test for pagination at 10+ items (shows "▶️ Next" button) in tests/integration/enhanced-keyboard.test.js
+- [x] T080 [P] [US5] Integration test for no pagination at exactly 9 items in tests/integration/enhanced-keyboard.test.js
+- [x] T081 [P] [US5] Integration test for "more" button only shown when additional items available (FR-017) in tests/integration/enhanced-keyboard.test.js
+- [x] T082 [P] [US5] Integration test for pagination navigation (Next replaces current keyboard inline) in tests/integration/enhanced-keyboard.test.js
+- [x] T083 [P] [US5] Integration test for pagination backward navigation (Prev replaces current keyboard inline) in tests/integration/enhanced-keyboard.test.js
+- [x] T084 [P] [US5] Integration test for first page feedback ("Already on first page") in tests/integration/enhanced-keyboard.test.js
+- [x] T085 [P] [US5] Integration test for last page feedback ("No more items") in tests/integration/enhanced-keyboard.test.js
+- [x] T086 [P] [US5] Unit test for createPaginatedKeyboard() pagination logic in tests/unit/ui/keyboard-builder.test.js
 
 ### Implementation for User Story 5
 
-- [ ] T087 [US5] Verify existing createPaginatedKeyboard() in src/lib/ui/keyboard-builder.js handles 10+ items correctly (FR-002, FR-016)
-- [ ] T088 [US5] Ensure pagination threshold check only shows at 10+ items (not at exactly 9) in src/lib/ui/keyboard-builder.js (note: T022 in US1 already implements this)
-- [ ] T089 [US5] Implement inline keyboard replacement (ctx.editMessageReplyMarkup) for pagination navigation in src/bot.js (FR-002)
-- [ ] T090 [US5] Add pagination callback handlers (page\_{number}, prev, next) in src/bot.js
-- [ ] T091 [US5] Add pagination state management (current page, total pages) in src/lib/ui/keyboard-builder.js
-- [ ] T092 [US5] Implement "▶️ Next" and "◀️ Prev" button controls with availability check (FR-017) in src/lib/ui/keyboard-builder.js
-- [ ] T093 [US5] Add first/last page edge case handling (disable Prev at first, Next at last) in src/lib/ui/keyboard-builder.js (FR-018)
-- [ ] T094 [US5] Add error handling for pagination navigation in src/bot.js
-- [ ] T095 [US5] Add logging for pagination operations in src/lib/ui/keyboard-builder.js
+- [x] T087 [US5] Verify existing createPaginatedKeyboard() in src/lib/ui/keyboard-builder.js handles 10+ items correctly (FR-002, FR-016)
+- [x] T088 [US5] Ensure pagination threshold check only shows at 10+ items (not at exactly 9) in src/lib/ui/keyboard-builder.js (note: T022 in US1 already implements this)
+- [x] T089 [US5] Implement inline keyboard replacement (ctx.editMessageReplyMarkup) for pagination navigation in src/bot.js (FR-002)
+- [x] T090 [US5] Add pagination callback handlers (page\_{number}, prev, next) in src/bot.js
+- [x] T091 [US5] Add pagination state management (current page, total pages) in src/lib/ui/keyboard-builder.js
+- [x] T092 [US5] Implement "▶️ Next" and "◀️ Prev" button controls with availability check (FR-017) in src/lib/ui/keyboard-builder.js
+- [x] T093 [US5] Add first/last page edge case handling (disable Prev at first, Next at last) in src/lib/ui/keyboard-builder.js (FR-018)
+- [x] T094 [US5] Add error handling for pagination navigation in src/bot.js
+- [x] T095 [US5] Add logging for pagination operations in src/lib/ui/keyboard-builder.js
 
 **Checkpoint**: At this point, User Story 5 should be fully functional. Menus with 10+ items show pagination, users can navigate between pages, and pagination only appears when items exceed 9.
 

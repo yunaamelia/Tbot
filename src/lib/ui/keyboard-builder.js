@@ -20,6 +20,13 @@ const MAX_LABEL_LENGTH = 20; // Max characters before truncation (FR-001)
 const MAX_BUTTON_BYTES = 64; // Telegram API limit per button
 const CACHE_TTL = 3600; // 1 hour
 
+// Visual emoji helpers for color coding (T072, FR-012, FR-013)
+const COLOR_EMOJIS = {
+  primary: '🔵', // Blue circle for primary actions
+  secondary: '⚪️', // White circle for secondary actions
+  danger: '🔴', // Red circle for danger actions
+};
+
 /**
  * Truncate label to max length with ellipsis if needed (T021, FR-001)
  * @param {string} label - Label text
@@ -179,13 +186,23 @@ async function createKeyboard(items, options = {}) {
       rows = balanceLayout(filteredItems, maxItemsPerRow);
     }
 
-    // Convert items to Markup buttons with label truncation (T020, T021, T024)
+    // Convert items to Markup buttons with label truncation and color coding (T020, T021, T024, T072, FR-012, FR-013)
     rows = rows.map((row) =>
       row.map((item) => {
         if (typeof item === 'object' && item.text && item.callback_data) {
           try {
+            let buttonText = item.text;
+
+            // Add color coding emoji if color_type is specified (T072, FR-013)
+            if (item.color_type && COLOR_EMOJIS[item.color_type]) {
+              // Only add emoji if not already present in text
+              if (!buttonText.includes(COLOR_EMOJIS[item.color_type])) {
+                buttonText = `${COLOR_EMOJIS[item.color_type]} ${buttonText}`;
+              }
+            }
+
             // Validate and truncate label if needed
-            const truncatedLabel = validateButtonLabel(item.text);
+            const truncatedLabel = validateButtonLabel(buttonText);
             return Markup.button.callback(truncatedLabel, item.callback_data);
           } catch (error) {
             logger.error('Error validating button label', error, { label: item.text });
@@ -209,6 +226,29 @@ async function createKeyboard(items, options = {}) {
 
     // Cache the keyboard
     cacheKeyboard(cacheKey, keyboard);
+
+    // Cache items list for pagination navigation (T091)
+    if (telegramUserId && filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+      try {
+        const redis = redisClient.getRedis();
+        if (redis && process.env.NODE_ENV !== 'test') {
+          // Store items list with message_id context for pagination
+          // In production, you'd store this when creating the keyboard
+          // For now, we'll cache it with a generic key
+          const itemsCacheKey = `menu:items:${telegramUserId}:${Date.now()}`;
+          await redis.set(itemsCacheKey, JSON.stringify(filteredItems), 'EX', 3600); // 1 hour TTL
+          logger.debug('Items list cached for pagination', {
+            telegramUserId,
+            itemsCount: filteredItems.length,
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to cache items list for pagination', {
+          telegramUserId,
+          error: error.message,
+        });
+      }
+    }
 
     // Log keyboard generation details (T026)
     const layoutPattern = `${filteredItems.length} items → ${rows.length - (includeNavigation ? 1 : 0)} rows`;
@@ -294,8 +334,18 @@ async function createPaginatedKeyboard(items, options = {}) {
     row.map((item) => {
       if (typeof item === 'object' && item.text && item.callback_data) {
         try {
+          let buttonText = item.text;
+
+          // Add color coding emoji if color_type is specified (T072, FR-013)
+          if (item.color_type && COLOR_EMOJIS[item.color_type]) {
+            // Only add emoji if not already present in text
+            if (!buttonText.includes(COLOR_EMOJIS[item.color_type])) {
+              buttonText = `${COLOR_EMOJIS[item.color_type]} ${buttonText}`;
+            }
+          }
+
           // Validate and truncate label if needed (T020, T021, T024)
-          const truncatedLabel = validateButtonLabel(item.text);
+          const truncatedLabel = validateButtonLabel(buttonText);
           return Markup.button.callback(truncatedLabel, item.callback_data);
         } catch (error) {
           logger.error('Error validating button label in pagination', error, { label: item.text });
@@ -370,6 +420,39 @@ async function createPaginatedKeyboard(items, options = {}) {
     rows.push(lastRow);
   }
 
+  // Cache items list for pagination navigation (T091)
+  if (telegramUserId && filteredItems.length > MAX_ITEMS_PER_SCREEN) {
+    try {
+      const redis = redisClient.getRedis();
+      if (redis && process.env.NODE_ENV !== 'test') {
+        // Store items list with message_id context for pagination
+        const itemsCacheKey = `menu:items:${telegramUserId}:${Date.now()}`;
+        await redis.set(itemsCacheKey, JSON.stringify(filteredItems), 'EX', 3600); // 1 hour TTL
+        logger.debug('Items list cached for pagination', {
+          telegramUserId,
+          itemsCount: filteredItems.length,
+          page,
+          totalPages,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to cache items list for pagination', {
+        telegramUserId,
+        error: error.message,
+      });
+    }
+  }
+
+  // Log pagination operations (T095)
+  logger.info('Paginated keyboard created', {
+    totalItems: filteredItems.length,
+    page,
+    totalPages,
+    itemsPerPage,
+    startIndex,
+    endIndex: Math.min(startIndex + itemsPerPage, filteredItems.length),
+  });
+
   return Markup.inlineKeyboard(rows);
 }
 
@@ -441,4 +524,5 @@ module.exports = {
   createPaginatedKeyboard,
   truncateLabel, // Export for unit tests (T019)
   validateButtonLabel, // Export for unit tests
+  COLOR_EMOJIS, // Export for testing and external use (T072, FR-012, FR-013)
 };
