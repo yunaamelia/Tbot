@@ -1,9 +1,9 @@
 /**
  * Responsive Keyboard Builder - Creates balanced inline keyboards with navigation
  *
- * Tasks: T036, T037, T041, T042, T042A, T042B
- * Requirements: FR-003, FR-004, FR-005, FR-021
- * Feature: 002-friday-enhancement
+ * Tasks: T036, T037, T041, T042, T042A, T042B, T020, T021, T022, T024, T025, T026
+ * Requirements: FR-003, FR-004, FR-005, FR-021, FR-001, FR-002
+ * Feature: 002-friday-enhancement, 003-enhanced-keyboard
  */
 
 const { Markup } = require('telegraf');
@@ -15,7 +15,63 @@ const logger = require('../shared/logger').child('keyboard-builder');
 
 const MAX_ITEMS_PER_SCREEN = 9;
 const MAX_ITEMS_PER_ROW = 3;
+const MAX_LABEL_LENGTH = 20; // Max characters before truncation (FR-001)
+const MAX_BUTTON_BYTES = 64; // Telegram API limit per button
 const CACHE_TTL = 3600; // 1 hour
+
+/**
+ * Truncate label to max length with ellipsis if needed (T021, FR-001)
+ * @param {string} label - Label text
+ * @param {number} maxLength - Maximum length before truncation (default: MAX_LABEL_LENGTH)
+ * @returns {string} Truncated label with ellipsis if needed
+ */
+function truncateLabel(label, maxLength = MAX_LABEL_LENGTH) {
+  if (typeof label !== 'string') {
+    return '';
+  }
+
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  // If maxLength is less than 3, truncate without ellipsis
+  if (maxLength < 3) {
+    return label.substring(0, maxLength);
+  }
+
+  // Truncate with ellipsis
+  return label.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Validate and sanitize button label (T024, FR-001)
+ * @param {string} label - Button label
+ * @returns {string} Sanitized label
+ * @throws {ValidationError} If label is invalid
+ */
+function validateButtonLabel(label) {
+  if (typeof label !== 'string') {
+    throw new ValidationError('Button label must be a string');
+  }
+
+  // Check byte length (Telegram API limit is 64 bytes)
+  const byteLength = Buffer.byteLength(label, 'utf8');
+  if (byteLength > MAX_BUTTON_BYTES) {
+    // Truncate to fit within byte limit
+    let truncated = label;
+    while (Buffer.byteLength(truncated, 'utf8') > MAX_BUTTON_BYTES && truncated.length > 0) {
+      truncated = truncated.substring(0, truncated.length - 1);
+    }
+    // Add ellipsis if truncated
+    if (truncated.length < label.length) {
+      truncated = truncateLabel(truncated, truncated.length - 3) + '...';
+    }
+    return truncated;
+  }
+
+  // Truncate long labels for UI consistency (max 20 characters)
+  return truncateLabel(label, MAX_LABEL_LENGTH);
+}
 
 /**
  * Create responsive inline keyboard with auto-balanced layout
@@ -28,10 +84,14 @@ const CACHE_TTL = 3600; // 1 hour
  */
 async function createKeyboard(items, options = {}) {
   try {
-    // Validate items
-    if (!Array.isArray(items)) {
-      throw new ValidationError('Items must be an array');
-    }
+    // Validate items (T025)
+    validateMenuItems(items);
+
+    // Log keyboard generation (T026)
+    logger.debug('Creating keyboard', {
+      itemCount: items.length,
+      options,
+    });
 
     const { includeNavigation = true, maxItemsPerRow = MAX_ITEMS_PER_ROW } = options;
 
@@ -41,7 +101,7 @@ async function createKeyboard(items, options = {}) {
       return Markup.inlineKeyboard([[Markup.button.callback('🏠 Home', 'nav_home')]]);
     }
 
-    // Handle pagination for >9 items
+    // Handle pagination for >9 items (T022, FR-002: only show at 10+ items, not at exactly 9)
     if (items.length > MAX_ITEMS_PER_SCREEN) {
       logger.info('Menu exceeds max items, implementing pagination', { totalItems: items.length });
       return createPaginatedKeyboard(items, options);
@@ -75,11 +135,21 @@ async function createKeyboard(items, options = {}) {
       rows = balanceLayout(items, maxItemsPerRow);
     }
 
-    // Convert items to Markup buttons (only once)
+    // Convert items to Markup buttons with label truncation (T020, T021, T024)
     rows = rows.map((row) =>
       row.map((item) => {
         if (typeof item === 'object' && item.text && item.callback_data) {
-          return Markup.button.callback(item.text, item.callback_data);
+          try {
+            // Validate and truncate label if needed
+            const truncatedLabel = validateButtonLabel(item.text);
+            return Markup.button.callback(truncatedLabel, item.callback_data);
+          } catch (error) {
+            logger.error('Error validating button label', error, { label: item.text });
+            // Fallback to original label or empty string
+            const fallbackLabel =
+              typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+            return Markup.button.callback(fallbackLabel, item.callback_data);
+          }
         }
         return item;
       })
@@ -95,9 +165,13 @@ async function createKeyboard(items, options = {}) {
     // Cache the keyboard
     cacheKeyboard(cacheKey, keyboard);
 
-    logger.debug('Keyboard created', {
+    // Log keyboard generation details (T026)
+    const layoutPattern = `${items.length} items → ${rows.length - (includeNavigation ? 1 : 0)} rows`;
+    logger.info('Keyboard created', {
       itemCount: items.length,
       rowCount: rows.length,
+      itemRowCount: rows.length - (includeNavigation ? 1 : 0),
+      layoutPattern,
       includeNavigation,
     });
 
@@ -106,6 +180,33 @@ async function createKeyboard(items, options = {}) {
     logger.error('Error creating keyboard', error, { itemsCount: items?.length });
     throw error;
   }
+}
+
+/**
+ * Validate menu items array (T025)
+ * @param {Array} items - Menu items
+ * @throws {ValidationError} If items are invalid
+ */
+function validateMenuItems(items) {
+  if (!Array.isArray(items)) {
+    throw new ValidationError('Items must be an array');
+  }
+
+  // Validate each item
+  items.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new ValidationError(`Item at index ${index} must be an object`);
+    }
+
+    if (!item.callback_data || typeof item.callback_data !== 'string') {
+      throw new ValidationError(`Item at index ${index} must have a valid callback_data string`);
+    }
+
+    // text is optional, but if provided should be a string
+    if (item.text !== undefined && typeof item.text !== 'string') {
+      throw new ValidationError(`Item at index ${index} text must be a string if provided`);
+    }
+  });
 }
 
 /**
@@ -129,7 +230,17 @@ function createPaginatedKeyboard(items, options = {}) {
   const rows = balancedRows.map((row) =>
     row.map((item) => {
       if (typeof item === 'object' && item.text && item.callback_data) {
-        return Markup.button.callback(item.text, item.callback_data);
+        try {
+          // Validate and truncate label if needed (T020, T021, T024)
+          const truncatedLabel = validateButtonLabel(item.text);
+          return Markup.button.callback(truncatedLabel, item.callback_data);
+        } catch (error) {
+          logger.error('Error validating button label in pagination', error, { label: item.text });
+          // Fallback to original label or empty string
+          const fallbackLabel =
+            typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+          return Markup.button.callback(fallbackLabel, item.callback_data);
+        }
       }
       return item;
     })
@@ -151,7 +262,19 @@ function createPaginatedKeyboard(items, options = {}) {
       ...limitedBalancedRows.map((row) =>
         row.map((item) => {
           if (typeof item === 'object' && item.text && item.callback_data) {
-            return Markup.button.callback(item.text, item.callback_data);
+            try {
+              // Validate and truncate label if needed (T020, T021, T024)
+              const truncatedLabel = validateButtonLabel(item.text);
+              return Markup.button.callback(truncatedLabel, item.callback_data);
+            } catch (error) {
+              logger.error('Error validating button label in pagination limit', error, {
+                label: item.text,
+              });
+              // Fallback to original label or empty string
+              const fallbackLabel =
+                typeof item.text === 'string' ? item.text.substring(0, MAX_LABEL_LENGTH) : '';
+              return Markup.button.callback(fallbackLabel, item.callback_data);
+            }
           }
           return item;
         })
@@ -252,4 +375,6 @@ async function cacheKeyboard(cacheKey, keyboard) {
 module.exports = {
   createKeyboard,
   createPaginatedKeyboard,
+  truncateLabel, // Export for unit tests (T019)
+  validateButtonLabel, // Export for unit tests
 };
